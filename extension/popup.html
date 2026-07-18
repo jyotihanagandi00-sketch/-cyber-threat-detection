@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 280px;
+      background: #06090f;
+      color: #c8dff4;
+      font-family: Arial, sans-serif;
+      padding: 16px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #1a3050;
+    }
+    .logo {
+      font-size: 24px;
+    }
+    .title {
+      font-size: 15px;
+      font-weight: bold;
+      color: #00c8ff;
+    }
+    .subtitle {
+      font-size: 10px;
+      color: #4a6580;
+      letter-spacing: 0.1em;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #0a1220;
+      border: 1px solid #1a3050;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #00cc66;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .status-text {
+      font-size: 12px;
+      color: #00cc66;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .stat {
+      background: #0a1220;
+      border: 1px solid #1a3050;
+      border-radius: 6px;
+      padding: 10px;
+      text-align: center;
+    }
+    .stat-num {
+      font-size: 22px;
+      font-weight: bold;
+      color: #00c8ff;
+    }
+    .stat-num.red { color: #ff4444; }
+    .stat-label {
+      font-size: 9px;
+      color: #4a6580;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    .accuracy {
+      background: #0a1220;
+      border: 1px solid #1a3050;
+      border-radius: 6px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .acc-label { font-size: 11px; color: #4a6580; }
+    .acc-value { font-size: 14px; font-weight: bold; color: #00cc66; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">🛡️</div>
+    <div>
+      <div class="title">CyberShield</div>
+      <div class="subtitle">AI THREAT DETECTION</div>
+    </div>
+  </div>
+
+  <div class="status">
+    <div class="dot"></div>
+    <div class="status-text">ACTIVE — Monitoring all links</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num" id="scanned">0</div>
+      <div class="stat-label">Scanned</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num red" id="blocked">0</div>
+      <div class="stat-label">Blocked</div>
+    </div>
+  </div>
+
+  <div class="accuracy">
+    <div class="acc-label">Model Accuracy</div>
+    <div class="acc-value">95.41%</div>
+  </div>
+
+  <script>
+    chrome.storage.local.get("stats", (data) => {
+      if (data.stats) {
+        document.getElementById("scanned").textContent = 
+          data.stats.scanned || 0;
+        document.getElementById("blocked").textContent = 
+          data.stats.blocked || 0;
+      }
+    });
+  </script>
+</body>
+</html>
