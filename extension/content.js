@@ -3,9 +3,6 @@
 
 const API_URL = "http://localhost:8000/classify";
 
-// Intercept all link clicks
-const API_URL = "http://localhost:8000/classify";
-
 // Trusted domains — never block these
 const WHITELIST = [
   "google.com", "youtube.com", "github.com",
@@ -35,9 +32,8 @@ document.addEventListener("click", async function(e) {
   const url = link.href;
 
   // Skip internal browser links
- // Skip internal browser links
-  if (url.startsWith("javascript:") || 
-      url.startsWith("mailto:") || 
+  if (url.startsWith("javascript:") ||
+      url.startsWith("mailto:") ||
       url.startsWith("#") ||
       url === window.location.href) return;
 
@@ -244,7 +240,7 @@ function showWarningPage(url, result) {
           <button class="btn-back" onclick="history.back()">
             ← Go Back to Safety
           </button>
-          <button class="btn-proceed" 
+          <button class="btn-proceed"
             onclick="window.location.href='${url}'">
             Proceed Anyway (Risky)
           </button>
@@ -262,3 +258,96 @@ function showWarningPage(url, result) {
   document.write(warningHTML);
   document.close();
 }
+
+// ── HOVER DETECTION (separate feature, lives at the top level — NOT inside the click handler) ──
+let hoverTimer = null;
+let hoverPopup = null;
+let lastHoveredUrl = null;
+
+document.addEventListener("mouseover", function(e) {
+  const link = e.target.closest("a");
+  if (!link || !link.href) return;
+
+  const url = link.href;
+
+  if (url.startsWith("javascript:") ||
+      url.startsWith("mailto:") ||
+      url.startsWith("#") ||
+      isTrusted(url)) {
+    return;
+  }
+
+  clearTimeout(hoverTimer);
+  hoverTimer = setTimeout(() => checkUrlOnHover(link, url), 400);
+});
+
+document.addEventListener("mouseout", function(e) {
+  const link = e.target.closest("a");
+  if (!link) return;
+  clearTimeout(hoverTimer);
+  removeHoverPopup();
+});
+
+async function checkUrlOnHover(link, url) {
+  if (url === lastHoveredUrl) return;
+  lastHoveredUrl = url;
+
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: url })
+    });
+    const result = await response.json();
+
+    if (result.verdict && result.verdict !== "SAFE") {
+      showHoverPopup(link, result);
+    }
+  } catch (error) {
+    console.warn("CyberShield hover check failed:", error);
+  }
+}
+
+function showHoverPopup(link, result) {
+  removeHoverPopup();
+
+  const verdictColor = result.verdict === "PHISHING" ? "#C00000" :
+                       result.verdict === "MALWARE"  ? "#8B0000" : "#C07000";
+
+  const rect = link.getBoundingClientRect();
+
+  hoverPopup = document.createElement("div");
+  hoverPopup.id = "cybershield-hover-popup";
+  hoverPopup.style.cssText = `
+    position: fixed;
+    top: ${rect.bottom + 6}px;
+    left: ${rect.left}px;
+    background: #1a1a1a;
+    color: white;
+    border: 1px solid ${verdictColor};
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: Arial, sans-serif;
+    z-index: 2147483647;
+    max-width: 280px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    pointer-events: none;
+  `;
+  hoverPopup.innerHTML = `
+    <strong style="color:${verdictColor};">⚠️ ${result.verdict}</strong>
+    <div style="color:#aaa; margin-top:2px;">
+      Confidence: ${result.confidence}%
+    </div>
+  `;
+  document.body.appendChild(hoverPopup);
+}
+
+function removeHoverPopup() {
+  if (hoverPopup) {
+    hoverPopup.remove();
+    hoverPopup = null;
+  }
+  lastHoveredUrl = null;
+}
+// ── END HOVER DETECTION ──────────────────────────────────────

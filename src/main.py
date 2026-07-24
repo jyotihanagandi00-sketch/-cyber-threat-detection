@@ -27,13 +27,13 @@ app.add_middleware(
 
 # ── Load models ──
 print("Loading models...")
-rf_model  = joblib.load("models/random_forest.pkl")
-xgb_model = joblib.load("models/xgboost.pkl")
+rf_model  = joblib.load("../models/random_forest.pkl")
+xgb_model = joblib.load("../models/xgboost.pkl")
 
-with open("models/ensemble_config.json") as f:
+with open("../models/ensemble_config.json") as f:
     config = json.load(f)
 
-with open("models/metrics.json") as f:
+with open("../models/metrics.json") as f:
     metrics = json.load(f)
 
 RF_WEIGHT  = config["rf_weight"]
@@ -128,7 +128,8 @@ def classify_url(request: URLRequest):
         "google.com", "youtube.com", "github.com", "wikipedia.org",
         "stackoverflow.com", "microsoft.com", "apple.com", "amazon.com",
         "facebook.com", "twitter.com", "linkedin.com", "reddit.com",
-        "python.org", "npmjs.com", "docs.python.org", "kaggle.com",
+        "python.org", "npmjs.com", "docs.python.org", "kaggle.com","aicte-india.org",
+        "aicte.india.gov.in","gov.in","nic.in","india.gov.in","mygov.in",
         "geeksforgeeks.org", "w3schools.com", "medium.com", "netflix.com"
     ]
     
