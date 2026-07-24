@@ -1,20 +1,32 @@
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
-# ── Config — fill in your Gmail details ──
-SENDER_EMAIL    = "aditishastry07@gmail.com"
-SENDER_PASSWORD = "dbur enht losf hpfa"
-RECEIVER_EMAIL  = "aditishastry07@gmail.com"
+# ── Config — loaded from environment variables (never hardcode secrets!) ──
+# SENDER_EMAIL/SENDER_PASSWORD are your app's Gmail account that actually sends the mail.
+# RECEIVER_EMAIL is the fallback/admin address used only if no per-user email is provided.
+SENDER_EMAIL    = os.environ.get("CYBERSHIELD_SENDER_EMAIL")
+SENDER_PASSWORD = os.environ.get("CYBERSHIELD_SENDER_PASSWORD")
+RECEIVER_EMAIL  = os.environ.get("CYBERSHIELD_RECEIVER_EMAIL")
+
 
 def send_threat_alert(url: str, verdict: str,
-                      confidence: float, reasons: list):
+                      confidence: float, reasons: list,
+                      recipient: str | None = None):
+    # Use the per-user email if one was provided (from the extension), otherwise fall back
+    to_email = recipient if recipient else RECEIVER_EMAIL
+
+    if not SENDER_EMAIL or not SENDER_PASSWORD or not to_email:
+        print("⚠️ Email alert skipped — missing sender credentials or recipient email.")
+        return False
+
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"🚨 CyberShield Alert — {verdict} Detected!"
         msg["From"]    = SENDER_EMAIL
-        msg["To"]      = RECEIVER_EMAIL
+        msg["To"]      = to_email
 
         html = f"""
         <html><body style="font-family:Arial,sans-serif;
@@ -68,10 +80,10 @@ def send_threat_alert(url: str, verdict: str,
 
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, RECEIVER_EMAIL,
+            server.sendmail(SENDER_EMAIL, to_email,
                           msg.as_string())
 
-        print(f"✅ Alert email sent for {verdict}: {url}")
+        print(f"✅ Alert email sent to {to_email} for {verdict}: {url}")
         return True
 
     except Exception as e:

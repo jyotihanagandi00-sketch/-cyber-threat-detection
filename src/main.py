@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -101,6 +104,7 @@ def extract_features(url):
 # ── Request model ──
 class URLRequest(BaseModel):
     url: str
+    user_email: str | None = None  # optional — email of the user making the request
 
 # ── Routes ──
 @app.get("/")
@@ -196,10 +200,11 @@ def classify_url(request: URLRequest):
     if not reasons:
         reasons = ["URL pattern matches known safe structure"] \
             if prediction == 0 else ["URL pattern matches malicious structure"]
-    # Send email alert for threats
+    # Send email alert for threats — goes to the requesting user's email if provided,
+    # otherwise falls back to the admin email configured in .env
     if prediction == 1:
         from email_alert import send_threat_alert
-        send_threat_alert(url, verdict, confidence, reasons[:5])
+        send_threat_alert(url, verdict, confidence, reasons[:5], recipient=request.user_email)
 
     return {
         "url":        url,

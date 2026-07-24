@@ -24,6 +24,18 @@ function isTrusted(url) {
   } catch { return false; }
 }
 
+// ── Load the user's saved email once, keep it in memory ──
+let userEmail = null;
+chrome.storage.sync.get(["cybershield_user_email"], (result) => {
+  userEmail = result.cybershield_user_email || null;
+});
+// Keep it updated if the user changes it in the popup while browsing
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync" && changes.cybershield_user_email) {
+    userEmail = changes.cybershield_user_email.newValue || null;
+  }
+});
+
 // Intercept all link clicks
 document.addEventListener("click", async function(e) {
   const link = e.target.closest("a");
@@ -51,11 +63,11 @@ document.addEventListener("click", async function(e) {
     // Show checking indicator
     showCheckingBadge(link);
 
-    // Call our FastAPI
+    // Call our FastAPI — now includes the user's email for personalized alerts
     const response = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: url })
+      body: JSON.stringify({ url: url, user_email: userEmail })
     });
 
     const result = await response.json();
@@ -259,7 +271,7 @@ function showWarningPage(url, result) {
   document.close();
 }
 
-// ── HOVER DETECTION (separate feature, lives at the top level — NOT inside the click handler) ──
+// ── HOVER DETECTION (lives at top level — separate from the click handler) ──
 let hoverTimer = null;
 let hoverPopup = null;
 let lastHoveredUrl = null;
@@ -296,7 +308,7 @@ async function checkUrlOnHover(link, url) {
     const response = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: url })
+      body: JSON.stringify({ url: url, user_email: userEmail })
     });
     const result = await response.json();
 
