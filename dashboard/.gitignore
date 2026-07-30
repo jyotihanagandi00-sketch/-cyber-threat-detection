@@ -23,3 +23,15 @@ yarn-debug.log*
 yarn-error.log*
 models/*.pkl
 data/features.csv
+
+# Large datasets
+data/features_v2.csv
+data/raw_urls_v2.csv
+data/top-1m.csv
+data/modern_urls.csv
+
+# Jupyter
+notebooks/.ipynb_checkpoints/
+
+# Python model files (optional if you don't want to track them)
+*.pkl
