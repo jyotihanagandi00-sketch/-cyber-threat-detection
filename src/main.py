@@ -31,7 +31,10 @@ app.add_middleware(
 # ── Load models ──
 print("Loading models...")
 rf_model  = joblib.load("../models/random_forest.pkl")
+print("MODEL EXPECTS:", list(rf_model.feature_names_in_))
 xgb_model = joblib.load("../models/xgboost.pkl")
+print("RF classes:", rf_model.classes_)
+print("XGB classes:", xgb_model.classes_)
 
 with open("../models/ensemble_config.json") as f:
     config = json.load(f)
@@ -43,7 +46,37 @@ RF_WEIGHT  = config["rf_weight"]
 XGB_WEIGHT = config["xgb_weight"]
 print("✅ Models loaded!")
 
-# ── Feature extraction ──
+# ── Brand mismatch config — must match step2_features.ipynb exactly ──
+BRAND_DOMAINS = {
+    "paypal": ["paypal.com"],
+    "amazon": ["amazon.com", "amazon.co.uk", "amazon.de"],
+    "apple": ["apple.com", "icloud.com"],
+    "microsoft": ["microsoft.com", "live.com", "office.com", "outlook.com"],
+    "google": ["google.com", "gmail.com", "youtube.com"],
+    "facebook": ["facebook.com", "fb.com"],
+    "instagram": ["instagram.com"],
+    "netflix": ["netflix.com"],
+    "ebay": ["ebay.com"],
+    "chase": ["chase.com"],
+    "wellsfargo": ["wellsfargo.com"],
+    "bankofamerica": ["bankofamerica.com"],
+}
+
+def has_brand_mismatch(url, netloc):
+    url_lower = url.lower()
+    netloc_lower = netloc.lower()
+
+    for brand, official_domains in BRAND_DOMAINS.items():
+        if brand in url_lower:
+            is_legit = any(
+                netloc_lower == d or netloc_lower.endswith("." + d)
+                for d in official_domains
+            )
+            if not is_legit:
+                return 1
+    return 0
+
+# ── Feature extraction — must match step2_features.ipynb exactly ──
 def extract_features(url):
     features = {}
     try:
@@ -76,9 +109,9 @@ def extract_features(url):
         features["has_html"]          = 1 if ".html" in url else 0
         features["has_exe"]           = 1 if ".exe" in url else 0
         features["has_zip"]           = 1 if ".zip" in url else 0
+        # brand names removed — handled by has_brand_mismatch instead
         sus_words = ["login","secure","verify","account","update",
-                     "confirm","banking","paypal","password","signin",
-                     "ebay","amazon","apple","microsoft","google",
+                     "confirm","banking","password","signin",
                      "free","lucky","winner","click","alert"]
         url_lower = url.lower()
         features["suspicious_words"]  = sum(1 for w in sus_words if w in url_lower)
@@ -96,6 +129,8 @@ def extract_features(url):
                                          len(url)) if len(url) > 0 else 0
         features["special_ratio"]     = (features["num_special_chars"] /
                                          len(url)) if len(url) > 0 else 0
+        # new 34th feature — must match notebook exactly
+        features["has_brand_mismatch"] = has_brand_mismatch(url, domain)
     except Exception:
         for key in features:
             features[key] = 0
@@ -129,13 +164,44 @@ def classify_url(request: URLRequest):
     url = request.url.strip()
     # Trusted domains whitelist
     TRUSTED = [
-        "google.com", "youtube.com", "github.com", "wikipedia.org",
-        "stackoverflow.com", "microsoft.com", "apple.com", "amazon.com",
-        "facebook.com", "twitter.com", "linkedin.com", "reddit.com",
-        "python.org", "npmjs.com", "docs.python.org", "kaggle.com","aicte-india.org",
-        "aicte.india.gov.in","gov.in","nic.in","india.gov.in","mygov.in",
-        "geeksforgeeks.org", "w3schools.com", "medium.com", "netflix.com"
-    ]
+    "google.com",
+    "youtube.com",
+    "github.com",
+    "wikipedia.org",
+    "stackoverflow.com",
+    "microsoft.com",
+    "apple.com",
+    "amazon.com",
+    "facebook.com",
+    "twitter.com",
+    "linkedin.com",
+    "reddit.com",
+    "python.org",
+    "npmjs.com",
+    "docs.python.org",
+    "kaggle.com",
+    "aicte-india.org",
+    "aicte.india.gov.in",
+    "gov.in",
+    "nic.in",
+    "india.gov.in",
+    "mygov.in",
+    "geeksforgeeks.org",
+    "w3schools.com",
+    "medium.com",
+    "netflix.com",
+    "localhost",
+    "127.0.0.1",
+    "whatsapp.com",
+    "telegram.org",
+    "spotify.com",
+    "discord.com",
+    "zoom.us",
+    "slack.com",
+    "chatgpt.com",
+    "openai.com",
+    "anthropic.com"
+]
     
     from urllib.parse import urlparse
     try:
@@ -161,26 +227,25 @@ def classify_url(request: URLRequest):
     # Get predictions from both models
     rf_proba  = rf_model.predict_proba(feat_array)[0][1]
     xgb_proba = xgb_model.predict_proba(feat_array)[0][1]
+    print(f"RF says: {rf_proba}, XGB says: {xgb_proba}")
 
     # Weighted ensemble
     final_proba = RF_WEIGHT * rf_proba + XGB_WEIGHT * xgb_proba
     prediction  = 1 if final_proba >= 0.5 else 0
 
     # Verdict
+# Verdict
     if prediction == 0:
         verdict    = "SAFE"
         confidence = round((1 - final_proba) * 100, 2)
     else:
+        verdict    = "MALICIOUS"
         confidence = round(final_proba * 100, 2)
-        if confidence >= 90:
-            verdict = "PHISHING"
-        elif confidence >= 75:
-            verdict = "MALICIOUS"
-        else:
-            verdict = "SUSPICIOUS"
 
     # Top SHAP-style reasons
     reasons = []
+    if feat.get("has_brand_mismatch"):
+        reasons.append("Brand name found in URL but domain doesn't match brand's real site")
     if feat["suspicious_tld"]:
         reasons.append("Suspicious TLD detected")
     if feat["has_ip"]:
@@ -213,12 +278,13 @@ def classify_url(request: URLRequest):
         "prediction": prediction,
         "reasons":    reasons[:5],
         "features": {
-            "url_length":       feat["url_length"],
-            "has_https":        feat["has_https"],
-            "num_dots":         feat["num_dots"],
-            "suspicious_words": feat["suspicious_words"],
-            "suspicious_tld":   feat["suspicious_tld"],
-            "has_ip":           feat["has_ip"],
+            "url_length":         feat["url_length"],
+            "has_https":          feat["has_https"],
+            "num_dots":           feat["num_dots"],
+            "suspicious_words":   feat["suspicious_words"],
+            "suspicious_tld":     feat["suspicious_tld"],
+            "has_ip":             feat["has_ip"],
+            "has_brand_mismatch": feat["has_brand_mismatch"],
         }
     }
 

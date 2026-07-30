@@ -12,7 +12,11 @@ const WHITELIST = [
   "geeksforgeeks.org", "w3schools.com", "mozilla.org",
   "python.org", "npmjs.com", "pypi.org", "docs.python.org",
   "medium.com", "dev.to", "kaggle.com", "coursera.org",
-  "udemy.com", "edx.org", "khanacademy.org", "leetcode.com"
+  "udemy.com", "edx.org", "khanacademy.org", "leetcode.com","whatsapp.com", "web.whatsapp.com",
+  // Local dev — prevents CyberShield from scanning its own backend's
+  // Swagger docs / API pages (e.g. 127.0.0.1:8000/docs), which would
+  // otherwise get flagged as malware just for containing a raw IP.
+  "localhost", "127.0.0.1"
 ];
 
 function isTrusted(url) {
@@ -37,7 +41,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 // Intercept all link clicks
-document.addEventListener("click", async function(e) {
+document.addEventListener("click", function(e) {
   const link = e.target.closest("a");
   if (!link || !link.href) return;
 
@@ -59,35 +63,33 @@ document.addEventListener("click", async function(e) {
   e.preventDefault();
   e.stopPropagation();
 
-  try {
-    // Show checking indicator
-    showCheckingBadge(link);
+  // Show checking indicator
+  showCheckingBadge(link);
 
-    // Call our FastAPI — now includes the user's email for personalized alerts
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: url, user_email: userEmail })
-    });
+  // Ask the background service worker to classify the URL.
+  // (Must go through background.js — a content script cannot fetch()
+  // an http:// URL from an https:// page; the browser blocks it.)
+  chrome.runtime.sendMessage(
+    { type: "CLASSIFY_URL", url: url, user_email: userEmail },
+    (response) => {
+      removeCheckingBadge();
 
-    const result = await response.json();
+      if (chrome.runtime.lastError || !response || !response.success) {
+        console.warn("CyberShield classify failed:",
+          chrome.runtime.lastError ? chrome.runtime.lastError.message : response && response.error);
+        // If the API is unreachable, let the user proceed normally
+        window.location.href = url;
+        return;
+      }
 
-    // Remove checking badge
-    removeCheckingBadge();
-
-    if (result.verdict === "SAFE") {
-      // Safe — let the user proceed
-      window.location.href = url;
-    } else {
-      // Dangerous — show warning page
-      showWarningPage(url, result);
+      const result = response.data;
+      if (result.verdict === "SAFE") {
+        window.location.href = url;
+      } else {
+        showWarningPage(url, result);
+      }
     }
-
-  } catch (error) {
-    // If API is down, let the user proceed normally
-    removeCheckingBadge();
-    window.location.href = url;
-  }
+  );
 }, true);
 
 // ── Show a small "Checking..." badge near the link ──
@@ -119,8 +121,7 @@ function removeCheckingBadge() {
 
 // ── Show full warning page ──
 function showWarningPage(url, result) {
-  const verdictColor = result.verdict === "PHISHING" ? "#C00000" :
-                       result.verdict === "MALWARE"  ? "#8B0000" : "#C07000";
+  const verdictColor = result.verdict === "MALICIOUS" ? "#C00000" : "#C07000";
 
   const reasons = result.reasons
     .map(r => `<li style="margin:6px 0;">⚠️ ${r}</li>`)
@@ -280,12 +281,16 @@ document.addEventListener("mouseover", function(e) {
   const link = e.target.closest("a");
   if (!link || !link.href) return;
 
+  // Ignore re-triggers from moving between child elements of the same link
+  if (link.contains(e.relatedTarget)) return;
+
   const url = link.href;
 
-  if (url.startsWith("javascript:") ||
-      url.startsWith("mailto:") ||
-      url.startsWith("#") ||
-      isTrusted(url)) {
+  if (
+    url.startsWith("javascript:") ||
+    url.startsWith("mailto:") ||
+    url.startsWith("#")
+  ) {
     return;
   }
 
@@ -296,35 +301,43 @@ document.addEventListener("mouseover", function(e) {
 document.addEventListener("mouseout", function(e) {
   const link = e.target.closest("a");
   if (!link) return;
+
+  // Ignore if we're still inside the same link (moving between its children)
+  if (link.contains(e.relatedTarget)) return;
+
   clearTimeout(hoverTimer);
   removeHoverPopup();
 });
 
-async function checkUrlOnHover(link, url) {
+function checkUrlOnHover(link, url) {
   if (url === lastHoveredUrl) return;
   lastHoveredUrl = url;
 
-  try {
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: url, user_email: userEmail })
-    });
-    const result = await response.json();
-
-    if (result.verdict && result.verdict !== "SAFE") {
-      showHoverPopup(link, result);
+  // Same fix as the click handler: go through background.js instead of
+  // fetching directly from the content script.
+  chrome.runtime.sendMessage(
+    { type: "CLASSIFY_URL", url: url, user_email: userEmail },
+    (response) => {
+      if (chrome.runtime.lastError) {
+        console.warn("CyberShield hover check failed:", chrome.runtime.lastError.message);
+        return;
+      }
+      if (!response || !response.success) {
+        console.warn("CyberShield hover check failed:", response && response.error);
+        return;
+      }
+      const result = response.data;
+      if (result.verdict) {
+        showHoverPopup(link, result);
+      }
     }
-  } catch (error) {
-    console.warn("CyberShield hover check failed:", error);
-  }
+  );
 }
 
 function showHoverPopup(link, result) {
   removeHoverPopup();
 
-  const verdictColor = result.verdict === "PHISHING" ? "#C00000" :
-                       result.verdict === "MALWARE"  ? "#8B0000" : "#C07000";
+  const verdictColor = result.verdict === "MALICIOUS" ? "#C00000" : "#C07000";
 
   const rect = link.getBoundingClientRect();
 
@@ -346,8 +359,12 @@ function showHoverPopup(link, result) {
     box-shadow: 0 4px 14px rgba(0,0,0,0.4);
     pointer-events: none;
   `;
+
+  // Safe verdicts get a green check instead of a warning triangle
+  const icon = result.verdict === "SAFE" ? "✅" : "⚠️";
+
   hoverPopup.innerHTML = `
-    <strong style="color:${verdictColor};">⚠️ ${result.verdict}</strong>
+    <strong style="color:${verdictColor};">${icon} ${result.verdict}</strong>
     <div style="color:#aaa; margin-top:2px;">
       Confidence: ${result.confidence}%
     </div>

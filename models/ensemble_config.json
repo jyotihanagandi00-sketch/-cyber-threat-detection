@@ -1,8 +1,8 @@
 {
   "rf_weight": 0.55,
   "xgb_weight": 0.45,
-  "rf_accuracy": 0.9581825555278263,
-  "xgb_accuracy": 0.9445501622161218,
-  "ensemble_accuracy": 0.9540569628150736,
+  "rf_accuracy": 0.9578802678461728,
+  "xgb_accuracy": 0.9455015972478191,
+  "ensemble_accuracy": 0.9537796412335667,
   "threshold": 0.5
 }
