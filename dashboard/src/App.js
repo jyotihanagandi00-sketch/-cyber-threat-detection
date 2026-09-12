@@ -387,6 +387,39 @@ export default function App() {
                     color:"#8aafcc", borderRadius:4 }}>{r}</span>
                 ))}
               </div>
+
+              {/* AI REASONING — only shown when Gemini actually ran for this scan */}
+              {result.ai_verdict && (
+                <div style={{ marginTop:12, paddingTop:12,
+                  borderTop:"1px solid rgba(0,200,255,0.12)" }}>
+                  <div style={{ display:"flex", alignItems:"center",
+                    justifyContent:"space-between", marginBottom:6 }}>
+                    <span style={{ fontSize:10, color:"#00c8ff",
+                      letterSpacing:"0.18em" }}>
+                      🤖 AI ANALYSIS — {result.ai_verdict} ({result.ai_confidence}%)
+                    </span>
+                    {result.agreement === false && (
+                      <span style={{ fontSize:9, padding:"2px 8px",
+                        background:"rgba(255,170,0,0.12)",
+                        border:"1px solid rgba(255,170,0,0.35)",
+                        color:"#ffaa00", borderRadius:3, fontWeight:700,
+                        letterSpacing:"0.06em" }}>
+                        AI OVERRODE ML
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize:12, color:"#c8dff4", lineHeight:1.5 }}>
+                    {result.ai_reason}
+                  </div>
+                  {result.ml_verdict && (
+                    <div style={{ fontSize:10, color:"#4a6580", marginTop:6 }}>
+                      ML model alone said: <strong style={{
+                        color: result.ml_verdict === "SAFE" ? "#00cc66" : "#ff4444"
+                      }}>{result.ml_verdict}</strong> ({result.ml_confidence}%)
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

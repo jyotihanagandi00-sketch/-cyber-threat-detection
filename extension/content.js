@@ -12,7 +12,7 @@ const WHITELIST = [
   "geeksforgeeks.org", "w3schools.com", "mozilla.org",
   "python.org", "npmjs.com", "pypi.org", "docs.python.org",
   "medium.com", "dev.to", "kaggle.com", "coursera.org",
-  "udemy.com", "edx.org", "khanacademy.org", "leetcode.com","whatsapp.com", "web.whatsapp.com",
+  "udemy.com", "edx.org", "khanacademy.org", "leetcode.com","whatsapp.com", "web.whatsapp.com", "quora.com", "scrimba.com","huggingface.co", "biet.ac.in", "propeers.in", "internshala.com",
   // Local dev — prevents CyberShield from scanning its own backend's
   // Swagger docs / API pages (e.g. 127.0.0.1:8000/docs), which would
   // otherwise get flagged as malware just for containing a raw IP.
@@ -127,6 +127,26 @@ function showWarningPage(url, result) {
     .map(r => `<li style="margin:6px 0;">⚠️ ${r}</li>`)
     .join("");
 
+  // ── AI reasoning block — only rendered when Gemini actually ran ──
+  // ai_reason is always present (even "Skipped — whitelisted domain" or
+  // "AI reasoning unavailable..."), but we only want a highlighted box
+  // when there's a real verdict from the AI to show.
+  let aiBlockHTML = "";
+  if (result.ai_verdict) {
+    const overrideNote = result.agreement === false
+      ? `<div style="margin-top:8px; font-size:12px; color:#f0b400;">
+           ⚡ AI overrode the ML model's initial read on this one.
+         </div>`
+      : "";
+    aiBlockHTML = `
+      <div class="ai-box">
+        <h3>🤖 AI ANALYSIS (${result.ai_verdict}, ${result.ai_confidence}% confident)</h3>
+        <p>${result.ai_reason}</p>
+        ${overrideNote}
+      </div>
+    `;
+  }
+
   const warningHTML = `
     <!DOCTYPE html>
     <html>
@@ -184,7 +204,7 @@ function showWarningPage(url, result) {
           border-radius: 6px;
           padding: 16px 20px;
           text-align: left;
-          margin-bottom: 28px;
+          margin-bottom: 16px;
         }
         .reasons h3 {
           color: ${verdictColor};
@@ -197,6 +217,25 @@ function showWarningPage(url, result) {
           font-size: 14px;
           color: #ccc;
           padding: 0;
+        }
+        .ai-box {
+          background: #111;
+          border: 1px solid #00c8ff44;
+          border-radius: 6px;
+          padding: 16px 20px;
+          text-align: left;
+          margin-bottom: 28px;
+        }
+        .ai-box h3 {
+          color: #00c8ff;
+          font-size: 13px;
+          margin-bottom: 8px;
+          letter-spacing: 0.06em;
+        }
+        .ai-box p {
+          font-size: 14px;
+          color: #ccc;
+          line-height: 1.4;
         }
         .buttons {
           display: flex;
@@ -249,6 +288,7 @@ function showWarningPage(url, result) {
           <h3>WHY THIS WAS FLAGGED:</h3>
           <ul>${reasons}</ul>
         </div>
+        ${aiBlockHTML}
         <div class="buttons">
           <button class="btn-back" onclick="history.back()">
             ← Go Back to Safety
@@ -363,11 +403,20 @@ function showHoverPopup(link, result) {
   // Safe verdicts get a green check instead of a warning triangle
   const icon = result.verdict === "SAFE" ? "✅" : "⚠️";
 
+  // Only show an AI line when Gemini actually gave a verdict for this URL
+  // (skipped on whitelisted domains, and on Gemini call failures)
+  const aiLine = result.ai_verdict
+    ? `<div style="color:#00c8ff; margin-top:4px; padding-top:4px; border-top:1px solid #333; line-height:1.3;">
+         🤖 ${result.ai_reason}
+       </div>`
+    : "";
+
   hoverPopup.innerHTML = `
     <strong style="color:${verdictColor};">${icon} ${result.verdict}</strong>
     <div style="color:#aaa; margin-top:2px;">
       Confidence: ${result.confidence}%
     </div>
+    ${aiLine}
   `;
   document.body.appendChild(hoverPopup);
 }
