@@ -1,4 +1,4 @@
-models/*.pkl
+
 data/features.csv
 __pycache__/
 *.pyc
