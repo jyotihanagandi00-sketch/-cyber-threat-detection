@@ -1,10 +1,12 @@
 fastapi
 uvicorn
-scikit-learn
-xgboost
 pandas
 numpy
 shap
 joblib
 pydantic
 python-multipart
+scikit-learn>=1.9.1
+xgboost>=3.4.1
+google-generativeai
+python-dotenv

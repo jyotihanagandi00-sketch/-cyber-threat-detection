@@ -1,8 +1,11 @@
 {
   "rf_weight": 0.55,
   "xgb_weight": 0.45,
-  "rf_accuracy": 0.9440900299475917,
-  "xgb_accuracy": 0.9373440229598203,
-  "ensemble_accuracy": 0.9432243573745944,
-  "threshold": 0.5
+  "threshold": 0.5,
+  "ensemble_accuracy": 0.9576729327927264,
+  "class_weights": {
+    "legitimate": 0.7431510391588289,
+    "malicious": 1.5281675162272177
+  },
+  "scale_pos_weight": 2.0563350324544354
 }

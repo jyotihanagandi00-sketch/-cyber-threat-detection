@@ -83,7 +83,7 @@ GEMINI_QUOTA_EXCEEDED = False
 
 if GEMINI_API_KEY:
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
+        genai.configure(api_key=GEMINI_API_KEY, transport="rest")
         gemini_model = genai.GenerativeModel(GEMINI_MODEL_NAME)
         print(f"Γ£à Gemini configured ({GEMINI_MODEL_NAME})")
     except Exception as e:
@@ -241,7 +241,8 @@ Respond with ONLY valid JSON in exactly this format:
             generation_config={
                 "temperature": 0.1,
                 "max_output_tokens": 1024
-            }
+            },
+            request_options={"timeout": 10, "retry": None}
         )
 
         raw_text = response.text.strip()
@@ -377,7 +378,43 @@ def log_confirmed_malicious(url: str, ml_confidence: float,
     except Exception as e:
         # Never let logging failures affect the actual classification response
         print(f"ΓÜá∩╕Å Could not log confirmed malicious URL: {e}")
+# ── Scan history (saved to a file so counts survive a restart) ──
+HISTORY_FILE = "../data/scan_history.json"
+MAX_HISTORY = 500
+HISTORY = {"total": 0, "blocked": 0, "recent": []}
+if os.path.exists(HISTORY_FILE):
+    try:
+        with open(HISTORY_FILE, encoding="utf-8") as f:
+            HISTORY.update(json.load(f))
+    except Exception as e:
+        print(f"Warning: could not load scan history: {e}")
 
+def record_scan(result: dict):
+    try:
+        HISTORY["total"] += 1
+        if result.get("verdict") == "MALICIOUS":
+            HISTORY["blocked"] += 1
+        HISTORY["recent"].insert(0, {
+            "id": HISTORY["total"],
+            "url": result.get("url"),
+            "verdict": result.get("verdict"),
+            "confidence": result.get("confidence"),
+            "ml_verdict": result.get("ml_verdict"),
+            "ml_confidence": result.get("ml_confidence"),
+            "ai_verdict": result.get("ai_verdict"),
+            "ai_confidence": result.get("ai_confidence"),
+            "ai_reason": result.get("ai_reason"),
+            "agreement": result.get("agreement"),
+            "reasons": result.get("reasons", []),
+            "time": datetime.now().isoformat(timespec="seconds"),
+        })
+        del HISTORY["recent"][MAX_HISTORY:]
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(HISTORY, f)
+    except Exception as e:
+        print(f"Warning: could not record scan: {e}")
+        
+        
 # ΓöÇΓöÇ Request model ΓöÇΓöÇ
 class URLRequest(BaseModel):
     url: str
@@ -403,8 +440,38 @@ def health():
         "auc_roc": metrics["auc_roc"]
     }
 
+@app.get("/stats")
+def stats():
+    recent = HISTORY["recent"]
+    total, blocked = HISTORY["total"], HISTORY["blocked"]
+    with_ai = [r for r in recent if r.get("ai_verdict")]
+    overrides = [r for r in with_ai if r.get("agreement") is False]
+    return {
+        "total": total, "blocked": blocked, "safe": total - blocked,
+        "rate": round(blocked / total * 100) if total else 0,
+        "agreed": sum(1 for r in with_ai if r.get("agreement") is True),
+        "overrode": len(overrides),
+        "ml_only": len(recent) - len(with_ai),
+        "fp_corrected": sum(1 for r in overrides if r.get("ml_verdict") == "MALICIOUS"),
+        "fn_caught": sum(1 for r in overrides if r.get("ml_verdict") == "SAFE"),
+    }
+
+@app.get("/recent")
+def recent(limit: int = 20):
+    return HISTORY["recent"][:max(1, min(limit, MAX_HISTORY))]
+
+@app.get("/metrics")
+def get_metrics():
+    return metrics
+
+
 @app.post("/classify")
 def classify_url(request: URLRequest):
+    result = _classify(request)
+    record_scan(result)
+    return result
+
+def _classify(request: URLRequest):
     url = request.url.strip()
 
     # Trusted domains whitelist
@@ -444,26 +511,11 @@ def classify_url(request: URLRequest):
     # Not whitelisted: run ML ensemble
     feat = extract_features(url)
 
-    # Prepare only the 11 features used during model training
-    parsed_url = urlparse(
-        url if url.startswith("http") else "http://" + url
+        # All 34 features, in the same order the models were trained on
+    feat_array = pd.DataFrame([feat]).reindex(
+        columns=list(rf_model.feature_names_in_), fill_value=0
     )
-
-    model_features = {
-        "url_length": feat["url_length"],
-        "hostname_length": len(parsed_url.hostname or ""),
-        "count_dots": feat["num_dots"],
-        "count_hyphens": feat["num_hyphens"],
-        "count_at": feat["num_at"],
-        "count_question": feat["num_question"],
-        "count_equal": feat["num_equals"],
-        "count_digits": feat["num_digits"],
-        "count_percent": feat["num_percent"],
-        "count_slashes": feat["num_slashes"],
-        "uses_https": feat["has_https"]
-    }
-
-    feat_array = pd.DataFrame([model_features])
+    
     rf_proba = rf_model.predict_proba(feat_array)[0][1]
     xgb_proba = xgb_model.predict_proba(feat_array)[0][1]
     print(f"RF says: {rf_proba}, XGB says: {xgb_proba}")

@@ -313,5 +313,100 @@
     "verdict": "SAFE",
     "confidence": 100.0,
     "reason": "Legitimate domain for a well-known online coding and interview preparation platform."
+  },
+  "https://www.instagram.com/accounts/signup/phone/": {
+    "verdict": "SAFE",
+    "confidence": 100.0,
+    "reason": "Official Instagram domain and legitimate account signup endpoint."
+  },
+  "https://www.paypal.com/verify": {
+    "verdict": "SAFE",
+    "confidence": 100.0,
+    "reason": "Official PayPal domain using standard secure HTTPS protocol."
+  },
+  "http://free-gift-card-winner.test/claim.exe": {
+    "verdict": "MALICIOUS",
+    "confidence": 100.0,
+    "reason": "Scam prize lure domain directly serving a dangerous executable file."
+  },
+  "http://bit.ly-secure.verify-now.invalid/a@b.com/login.html?x=1&y=2&z=3": {
+    "verdict": "MALICIOUS",
+    "confidence": 99.0,
+    "reason": "Deceptive brand impersonation and credential harvesting path structure indicate phishing."
+  },
+  "https://www.creative-tim.com/ui/templates": {
+    "verdict": "SAFE",
+    "confidence": 98.0,
+    "reason": "Legitimate established company website offering web design templates and UI kits."
+  },
+  "https://www.amazon.in": {
+    "verdict": "SAFE",
+    "confidence": 100.0,
+    "reason": "Official Amazon India website with legitimate domain and standard structure."
+  },
+  "http://192.168.45.12/bank/update-password.php?id=88231&token=a1b2c3d4": {
+    "verdict": "MALICIOUS",
+    "confidence": 95.0,
+    "reason": "Raw IP address hosting a sensitive banking password update page over insecure HTTP."
+  },
+  "amaz0n-security-alert.xyz/confirm": {
+    "verdict": "MALICIOUS",
+    "confidence": 100.0,
+    "reason": "Uses typosquatting and deceptive brand impersonation on a suspicious TLD."
+  },
+  "mozilla.org": {
+    "verdict": "SAFE",
+    "confidence": 100.0,
+    "reason": "This is the official domain for the Mozilla Foundation."
+  },
+  "mystore-deals123.shop/product?id=45": {
+    "verdict": "MALICIOUS",
+    "confidence": 85.0,
+    "reason": "Suspicious generic domain using a low-trust TLD often associated with phishing and fraud."
+  },
+  "https://www.ilovepdf.com/pdf_to_word": {
+    "verdict": "SAFE",
+    "confidence": 100.0,
+    "reason": "Legitimate, well-known document processing service with a reputable domain."
+  },
+  "https://www.paypal.com/": {
+    "verdict": "SAFE",
+    "confidence": 100.0,
+    "reason": "This is the official, legitimate domain for PayPal."
+  },
+  "https://www.ibm.com/docs/en/aix/7.1.0?topic=directories-creating-mkdir-command": {
+    "verdict": "SAFE",
+    "confidence": 100.0,
+    "reason": "The URL belongs to the official IBM documentation domain."
+  },
+  "https://www.paypal.com/us/cshelp/article/how-do-i-verify-my-paypal-account-help434": {
+    "verdict": "SAFE",
+    "confidence": 100.0,
+    "reason": "The URL belongs to the legitimate paypal.com domain and follows standard help page structure."
+  },
+  "https://www.paypal.com/uk/cshelp/article/how-do-i-verify-my-paypal-account-help434": {
+    "verdict": "SAFE",
+    "confidence": 100.0,
+    "reason": "The URL belongs to the legitimate paypal.com domain and follows standard help page structure."
+  },
+  "https://www.paypal.com/za/cshelp/article/how-do-i-verify-my-paypal-account-help434": {
+    "verdict": "SAFE",
+    "confidence": 100.0,
+    "reason": "The URL belongs to the legitimate paypal.com domain and follows standard help page structure."
+  },
+  "https://www.paypal.com/in/signin": {
+    "verdict": "SAFE",
+    "confidence": 100.0,
+    "reason": "The URL uses the legitimate, official domain for PayPal's Indian sign-in page."
+  },
+  "https://api.semanticscholar.org/corpusid:5472217": {
+    "verdict": "SAFE",
+    "confidence": 100.0,
+    "reason": "Legitimate API endpoint for the well-known academic research database Semantic Scholar."
+  },
+  "http://paypal-secure-login-verify.tk/": {
+    "verdict": "MALICIOUS",
+    "confidence": 100.0,
+    "reason": "Deceptive brand impersonation using a suspicious TLD to harvest credentials."
   }
 }

@@ -1,702 +1,410 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line,
 } from "recharts";
 import axios from "axios";
 
 const API = "http://127.0.0.1:8000";
+const GREEN = "#5ff0a0", RED = "#ff5a5a", ORANGE = "#ff6a2b";
+const AMBER = "#ffb02e", VIOLET = "#9b8cff", BLUE = "#5ec8ff";
+const PIPES = ["URL Click", "Extension", "Features", "ML Ensemble", "Gemini AI", "Alert / Block"];
 
-const FEED = [
-  { url: "paypal-secure-login.ru/auth/verify", type: "PHISHING", conf: 97 },
-  { url: "github.com/user/repository", type: "SAFE", conf: 99 },
-  { url: "free-crypto-airdrop2024.xyz", type: "SUSPICIOUS", conf: 81 },
-  { url: "microsoft-update-verify.net/dl", type: "MALWARE", conf: 96 },
-  { url: "docs.python.org/3/library/os", type: "SAFE", conf: 100 },
-  { url: "bank0famerica-secure.cc/login", type: "PHISHING", conf: 99 },
-  { url: "stackoverflow.com/questions/123", type: "SAFE", conf: 98 },
-  { url: "win-iphone15-now.click/claim", type: "PHISHING", conf: 94 },
-  { url: "npmjs.com/package/react", type: "SAFE", conf: 99 },
-  { url: "amazom-deals-prime.shop/offer", type: "PHISHING", conf: 98 },
-];
+const css = `
+*{box-sizing:border-box}
+body{margin:0;background:#140503}
+@keyframes drift{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(50px,-30px) scale(1.12)}}
+@keyframes sweep{to{transform:rotate(360deg)}}
+@keyframes blip{0%{transform:scale(.6);opacity:1}100%{transform:scale(2.6);opacity:0}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes fade{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.bg div{position:fixed;border-radius:50%;pointer-events:none}
+.panel{position:relative;z-index:1;width:calc(100% - 48px);max-width:1500px;margin:24px auto;padding:26px 30px;
+ border-radius:34px;background:rgba(9,7,7,.78);border:1px solid rgba(255,255,255,.16);
+ backdrop-filter:blur(26px);box-shadow:0 30px 80px rgba(0,0,0,.55);display:flex;flex-direction:column;gap:16px}
+.card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.11);border-radius:22px;padding:18px 22px;position:relative;overflow:hidden;min-width:0}
+.glow{background:radial-gradient(circle at 85% 100%,rgba(255,92,31,.45),transparent 60%),rgba(255,255,255,.05)}
+.lbl{font-size:15px;font-weight:700;color:#fff}
+.sub{font-size:13px;color:#cfcfd6}
+.pill{font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;letter-spacing:.06em;text-align:center;white-space:nowrap}
+.chip{font-size:13px;padding:4px 12px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:#e4e4ea}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.gA{display:grid;grid-template-columns:330px 1fr;gap:14px}
+.gB,.gC{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.row{display:grid;grid-template-columns:1fr 110px 150px 80px;align-items:center;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.08);font-family:Consolas,monospace;font-size:14px;cursor:pointer;animation:fade .35s ease}
+.bar{height:8px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden}
+input:focus{outline:none;border-color:rgba(255,106,43,.7)!important}
+button{cursor:pointer}
+@media(max-width:1150px){.g4,.gA,.gB,.gC{grid-template-columns:1fr}}
+`;
 
-const TIMELINE = [
-  { time: "12:00", threats: 2, safe: 8 },
-  { time: "12:05", threats: 4, safe: 6 },
-  { time: "12:10", threats: 1, safe: 9 },
-  { time: "12:15", threats: 6, safe: 5 },
-  { time: "12:20", threats: 3, safe: 7 },
-  { time: "12:25", threats: 5, safe: 6 },
-  { time: "12:30", threats: 2, safe: 9 },
-];
+const pillStyle = (v) =>
+  v === "SAFE"
+    ? { background: "rgba(95,240,160,.15)", color: GREEN }
+    : { background: "rgba(255,90,90,.2)", color: "#ff8a80" };
 
-const PIE_DATA = [
-  { name: "Phishing", value: 42, color: "#ff4444" },
-  { name: "Malware", value: 23, color: "#ff7700" },
-  { name: "Suspicious", value: 18, color: "#ffaa00" },
-  { name: "Safe", value: 17, color: "#00cc66" },
-];
+const place = (u = "") => {
+  let h = 0;
+  for (const c of u) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const a = ((h % 360) * Math.PI) / 180;
+  const r = 22 + ((h >>> 9) % 55);
+  return { x: 50 + r * Math.cos(a) * 0.9, y: 50 + r * Math.sin(a) * 0.9 };
+};
 
-const SHAP_DATA = [
-  { feature: "Suspicious TLD", value: 34, color: "#ff4444" },
-  { feature: "Brand in subdomain", value: 28, color: "#ff7700" },
-  { feature: "Domain age: 2 days", value: 21, color: "#ffaa00" },
-  { feature: "URL length", value: 10, color: "#4488ff" },
-  { feature: "HTTPS present", value: -12, color: "#00cc66" },
-];
-
-const ROC = Array.from({ length: 20 }, (_, i) => ({
-  fpr: parseFloat((i / 19).toFixed(2)),
-  tpr: parseFloat(Math.min(1, Math.pow(i / 19, 0.08)).toFixed(3)),
-  random: parseFloat((i / 19).toFixed(2)),
-}));
-
-const THREAT_DOTS = [
-  { lat: 51.5, lon: -0.1 }, { lat: 40.7, lon: -74 },
-  { lat: 35.6, lon: 139.7 }, { lat: 48.8, lon: 2.3 },
-  { lat: 55.7, lon: 37.6 }, { lat: 22.3, lon: 114.1 },
-  { lat: -33.8, lon: 151.2 }, { lat: 19.4, lon: -99.1 },
-  { lat: 28.6, lon: 77.2 }, { lat: 37.5, lon: 127 },
-  { lat: 52.5, lon: 13.4 }, { lat: 1.3, lon: 103.8 },
-  { lat: 41.9, lon: 12.5 }, { lat: -23.5, lon: -46.6 },
-];
-
-function typeStyle(t) {
-  if (t === "SAFE") return { text: "#00cc66", bg: "rgba(0,204,102,0.12)", border: "rgba(0,204,102,0.35)" };
-  if (t === "PHISHING") return { text: "#ff4444", bg: "rgba(255,68,68,0.12)", border: "rgba(255,68,68,0.35)" };
-  if (t === "MALWARE") return { text: "#dc2626", bg: "rgba(220,38,38,0.15)", border: "rgba(220,38,38,0.4)" };
-  return { text: "#ffaa00", bg: "rgba(255,170,0,0.12)", border: "rgba(255,170,0,0.35)" };
-}
-
-// 3D Globe Component
-function Globe() {
-  const canvasRef = useRef(null);
-  const angleRef = useRef(0);
-  const rafRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const W = canvas.width, H = canvas.height;
-    const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 10;
-
-    function project(lat, lon, rot) {
-      const phi = (90 - lat) * Math.PI / 180;
-      const theta = (lon + rot) * Math.PI / 180;
-      const x = R * Math.sin(phi) * Math.cos(theta);
-      const y = R * Math.cos(phi);
-      const z = R * Math.sin(phi) * Math.sin(theta);
-      return { x: cx + x, y: cy - y, z, visible: z > -20 };
-    }
-
-    function draw() {
-      ctx.clearRect(0, 0, W, H);
-      angleRef.current = (angleRef.current + 0.35) % 360;
-      const angle = angleRef.current;
-
-      // Globe base
-      const grad = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.3, R * 0.1, cx, cy, R);
-      grad.addColorStop(0, "#0d2444");
-      grad.addColorStop(1, "#020810");
-      ctx.beginPath();
-      ctx.arc(cx, cy, R, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
-      ctx.strokeStyle = "rgba(0,200,255,0.25)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Grid lines
-      ctx.strokeStyle = "rgba(0,200,255,0.08)";
-      ctx.lineWidth = 0.5;
-      for (let lat = -60; lat <= 60; lat += 30) {
-        ctx.beginPath();
-        let first = true;
-        for (let lon = 0; lon <= 360; lon += 5) {
-          const p = project(lat, lon, angle);
-          if (!p.visible) { first = true; continue; }
-          first ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
-          first = false;
-        }
-        ctx.stroke();
-      }
-      for (let lon = 0; lon < 360; lon += 30) {
-        ctx.beginPath();
-        let first = true;
-        for (let lat = -90; lat <= 90; lat += 5) {
-          const p = project(lat, lon, angle);
-          if (!p.visible) { first = true; continue; }
-          first ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
-          first = false;
-        }
-        ctx.stroke();
-      }
-
-      // Threat dots
-      const t = Date.now() / 600;
-      THREAT_DOTS.forEach((d, i) => {
-        const p = project(d.lat, d.lon, angle);
-        if (!p.visible) return;
-        const pulse = 0.5 + 0.5 * Math.sin(t + i * 0.9);
-        const depth = (p.z + R) / (2 * R);
-
-        // Outer ring
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 5 + pulse * 3, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,68,68,${0.15 * pulse * depth})`;
-        ctx.fill();
-
-        // Core dot
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,68,68,${0.7 + 0.3 * pulse})`;
-        ctx.fill();
-      });
-
-      // Atmosphere glow
-      const atmo = ctx.createRadialGradient(cx, cy, R * 0.85, cx, cy, R * 1.15);
-      atmo.addColorStop(0, "rgba(0,200,255,0)");
-      atmo.addColorStop(0.5, "rgba(0,200,255,0.04)");
-      atmo.addColorStop(1, "rgba(0,200,255,0)");
-      ctx.beginPath();
-      ctx.arc(cx, cy, R * 1.15, 0, Math.PI * 2);
-      ctx.fillStyle = atmo;
-      ctx.fill();
-
-      rafRef.current = requestAnimationFrame(draw);
-    }
-
-    draw();
-    return () => cancelAnimationFrame(rafRef.current);
-  }, []);
-
+function Gauge({ pct }) {
   return (
-    <canvas ref={canvasRef} width={260} height={220}
-      style={{ borderRadius: 8, display: "block", margin: "0 auto" }} />
+    <svg viewBox="0 0 200 118" width="100%" style={{ maxHeight: 175 }}>
+      <defs>
+        <linearGradient id="ga" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor={AMBER} />
+          <stop offset="1" stopColor="#ff4d3a" />
+        </linearGradient>
+      </defs>
+      <path d="M20 104 A80 80 0 0 1 180 104" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="16" strokeLinecap="round" />
+      <path d="M20 104 A80 80 0 0 1 180 104" fill="none" stroke="url(#ga)" strokeWidth="16" strokeLinecap="round"
+        pathLength="100" strokeDasharray={`${Math.max(pct, 0.5)} 100`} />
+      <text x="100" y="92" textAnchor="middle" fill="#fff" fontSize="32" fontWeight="800">{pct}%</text>
+      <text x="100" y="112" textAnchor="middle" fill="#cfcfd6" fontSize="12">malicious of all scans</text>
+    </svg>
   );
 }
 
-// Animated number
-function AnimNum({ value, duration = 1200 }) {
-  const [display, setDisplay] = useState(0);
-  useEffect(() => {
-    const start = Date.now();
-    const target = parseFloat(value);
-    const tick = () => {
-      const elapsed = Date.now() - start;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(Math.round(eased * target));
-      if (progress < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, [value, duration]);
-  return <>{display.toLocaleString()}</>;
+function Radar({ blips }) {
+  return (
+    <div style={{ position: "relative", width: 190, height: 190, borderRadius: "50%", margin: "8px auto",
+      border: "1px solid rgba(255,255,255,.25)", overflow: "hidden",
+      background: "repeating-radial-gradient(circle,transparent 0 30px,rgba(255,255,255,.14) 30px 31px)" }}>
+      <div style={{ position: "absolute", inset: 0, borderRadius: "50%",
+        background: "conic-gradient(from 0deg,rgba(255,106,43,.7),transparent 28%)", animation: "sweep 4s linear infinite" }} />
+      {blips.map((b) => (
+        <div key={b.id} style={{ position: "absolute", left: `${b.x}%`, top: `${b.y}%`, width: 12, height: 12, marginLeft: -6, marginTop: -6 }}>
+          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: RED }} />
+          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `2px solid ${RED}`, animation: "blip 1.6s ease-out infinite" }} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function App() {
-  const [feed, setFeed] = useState(FEED.slice(0, 5));
-  const [scans, setScans] = useState(847);
-  const [blocked, setBlocked] = useState(312);
-  const [tick, setTick] = useState(0);
-  const [urlInput, setUrlInput] = useState("");
+  const [stats, setStats] = useState({ total: 0, blocked: 0, safe: 0, rate: 0, agreed: 0, overrode: 0, ml_only: 0, fp_corrected: 0, fn_caught: 0 });
+  const [recent, setRecent] = useState([]);
+  const [metrics, setMetrics] = useState(null);
+  const [health, setHealth] = useState(null);
+  const [online, setOnline] = useState(true);
+  const [url, setUrl] = useState("");
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState(null);
-  const [health, setHealth] = useState(null);
-  const [selected, setSelected] = useState(null);
-  const [pipeStep, setPipeStep] = useState(0);
+  const [open, setOpen] = useState(null);
+  const [pipe, setPipe] = useState(-1);
+  const [blips, setBlips] = useState([]);
+  const [now, setNow] = useState(new Date());
+  const lastId = useRef(null);
 
-  useEffect(() => {
-    const iv = setInterval(() => {
-      const next = FEED[tick % FEED.length];
-      setFeed(prev => [next, ...prev].slice(0, 8));
-      setScans(s => s + 1);
-      if (next.type !== "SAFE") setBlocked(b => b + 1);
-      setTick(t => t + 1);
-    }, 2600);
-    return () => clearInterval(iv);
-  }, [tick]);
-
-  useEffect(() => {
-    axios.get(`${API}/health`).then(r => setHealth(r.data)).catch(() => setHealth(null));
+  const refresh = useCallback(async () => {
+    try {
+      const [s, r] = await Promise.all([axios.get(`${API}/stats`), axios.get(`${API}/recent?limit=20`)]);
+      setStats(s.data);
+      setRecent(r.data);
+      const newest = r.data.length ? r.data[0].id : 0;
+      if (lastId.current === null || newest < lastId.current) lastId.current = newest;
+      else if (newest > lastId.current) {
+        const fresh = r.data.filter((e) => e.id > lastId.current && e.verdict === "MALICIOUS");
+        if (fresh.length) setBlips((b) => [...b, ...fresh.map((e) => ({ id: e.id, ...place(e.url), t: Date.now() }))]);
+        lastId.current = newest;
+      }
+      setOnline(true);
+    } catch {
+      setOnline(false);
+    }
   }, []);
 
   useEffect(() => {
-    const iv = setInterval(() => setPipeStep(s => (s + 1) % 6), 700);
-    return () => clearInterval(iv);
+    axios.get(`${API}/metrics`).then((r) => setMetrics(r.data)).catch(() => {});
+  }, []);
+  useEffect(() => {
+    refresh();
+    const a = setInterval(refresh, 3000);
+    return () => clearInterval(a);
+  }, [refresh]);
+  useEffect(() => {
+    const h = () => axios.get(`${API}/health`).then((r) => setHealth(r.data)).catch(() => setHealth(null));
+    h();
+    const a = setInterval(h, 10000);
+    return () => clearInterval(a);
+  }, []);
+  useEffect(() => {
+    const a = setInterval(() => {
+      setNow(new Date());
+      setBlips((b) => {
+        const f = b.filter((x) => Date.now() - x.t < 8000);
+        return f.length === b.length ? b : f;
+      });
+    }, 1000);
+    return () => clearInterval(a);
   }, []);
 
   async function handleScan() {
-    if (!urlInput.trim()) return;
+    const u = url.trim();
+    if (!u || scanning) return;
     setScanning(true);
     setResult(null);
+    setPipe(0);
+    const timers = [1, 2, 3, 4].map((i) => setTimeout(() => setPipe((p) => Math.max(p, i)), i * 350));
     try {
-      const r = await axios.post(`${API}/classify`, { url: urlInput });
+      const r = await axios.post(`${API}/classify`, { url: u });
+      timers.forEach(clearTimeout);
       setResult(r.data);
+      setPipe(5);
+      setTimeout(() => setPipe(-1), 2500);
+      refresh();
     } catch {
-      setResult({ verdict: "ERROR", confidence: 0, reasons: ["API not reachable — start python main.py"] });
+      timers.forEach(clearTimeout);
+      setPipe(-1);
+      setResult({ verdict: "ERROR", confidence: 0, reasons: ["API not reachable. Start the backend with: python main.py"] });
     }
     setScanning(false);
   }
 
-  const threatRate = Math.round((blocked / scans) * 100);
-  const PIPES = ["URL Click", "Extension", "Features", "ML Ensemble", "SHAP", "Alert/Block"];
-  const PIPE_COLORS = ["#0ea5e9", "#8b5cf6", "#f59e0b", "#0ea5e9", "#22c55e", "#ef4444"];
+  const acc = metrics ? (metrics.accuracy * 100).toFixed(2) : health ? (health.accuracy * 100).toFixed(2) : "--";
+  const cm = metrics && metrics.confusion_matrix;
+  const bars = metrics ? [
+    { n: "Random Forest", v: metrics.rf_accuracy_calibrated, c: ORANGE },
+    { n: "XGBoost", v: metrics.xgb_accuracy_calibrated, c: ORANGE },
+    { n: "Ensemble", v: metrics.accuracy, c: VIOLET },
+  ] : [];
+  let s = 0, m = 0;
+  const timeline = [...recent].reverse().map((e, i) => {
+    if (e.verdict === "MALICIOUS") m++; else s++;
+    return { n: i + 1, safe: s, malicious: m };
+  });
+  const roc = metrics && metrics.roc ? metrics.roc.fpr.map((f, i) => ({ fpr: f, tpr: metrics.roc.tpr[i], ref: f })) : [];
+  const top5 = metrics && metrics.rf_feature_importance ? metrics.rf_feature_importance.slice(0, 5) : [];
+  const topMax = top5.length ? top5[0].importance : 1;
+  const alertColor = result && result.verdict === "SAFE" ? GREEN : RED;
+  const tip = { background: "#1a0e0a", border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, fontSize: 13, color: "#fff" };
 
   return (
-    <div style={{ background: "#06090f", minHeight: "100vh", color: "#c8dff4",
-      fontFamily: "'Segoe UI',Arial,sans-serif", padding: "18px 22px", position: "relative",
-      overflow: "hidden" }}>
-      <style>{`
-        *{box-sizing:border-box;margin:0;padding:0}
-        ::-webkit-scrollbar{width:4px}
-        ::-webkit-scrollbar-thumb{background:#1a3050;border-radius:2px}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-        @keyframes fadeSlide{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes glow{0%,100%{box-shadow:0 0 20px rgba(0,200,255,0.15)}50%{box-shadow:0 0 35px rgba(0,200,255,0.3)}}
-        @keyframes scanline{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
-        .feed-item{animation:fadeSlide 0.35s ease forwards}
-        .panel{transition:border-color 0.3s}
-        .panel:hover{border-color:rgba(0,200,255,0.25)!important}
-        input:focus{outline:none}
-        button{cursor:pointer}
-      `}</style>
+    <div style={{ minHeight: "100vh", background: "#140503", color: "#fff", fontFamily: "Inter,'Segoe UI',Arial,sans-serif", fontSize: 15, position: "relative", overflow: "hidden" }}>
+      <style>{css}</style>
+      <div className="bg">
+        <div style={{ left: -60, top: -120, width: "120%", height: 260, borderRadius: 0, transform: "rotate(14deg)", filter: "blur(60px)", opacity: 0.9, animation: "drift 14s ease-in-out infinite",
+          background: "linear-gradient(100deg,transparent 20%,#ff5a1f 42%,#ffa05a 50%,#ff5a1f 58%,transparent 80%)" }} />
+        <div style={{ left: -160, bottom: -200, width: 720, height: 560, background: "#ff4d17", filter: "blur(120px)", opacity: 0.85, animation: "drift 18s ease-in-out infinite" }} />
+        <div style={{ right: -140, bottom: -160, width: 620, height: 520, background: "#c92d0a", filter: "blur(120px)", opacity: 0.9, animation: "drift 16s 3s ease-in-out infinite" }} />
+      </div>
 
-      {/* Grid background */}
-      <div style={{ position:"fixed", inset:0,
-        backgroundImage:"linear-gradient(rgba(0,200,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,200,255,0.025) 1px,transparent 1px)",
-        backgroundSize:"44px 44px", pointerEvents:"none", zIndex:0 }} />
-
-      {/* Scanline */}
-      <div style={{ position:"fixed", top:0, left:0, right:0, height:"2px",
-        background:"linear-gradient(90deg,transparent,rgba(0,200,255,0.4),transparent)",
-        animation:"scanline 7s linear infinite", pointerEvents:"none", zIndex:1 }} />
-
-      <div style={{ position:"relative", zIndex:2 }}>
-
+      <div className="panel">
         {/* HEADER */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
-          marginBottom:18, paddingBottom:14,
-          borderBottom:"1px solid rgba(0,200,255,0.1)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <div style={{ fontSize:24, fontWeight:900, color:"#fff", letterSpacing:"0.04em",
-              textShadow:"0 0 30px rgba(0,200,255,0.3)" }}>
-              CYBER<span style={{ color:"#00c8ff" }}>SHIELD</span>
-              <span style={{ fontFamily:"monospace", fontSize:11, color:"#4a6580",
-                marginLeft:12, fontWeight:400, letterSpacing:"0.2em" }}>v1.0.0</span>
-            </div>
-            <div style={{ fontSize:10, color:"#4a6580", letterSpacing:"0.22em", marginTop:3 }}>
-              AI-BASED CYBER THREAT DETECTION SYSTEM
-            </div>
+            <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: ".03em" }}>CYBER<span style={{ color: ORANGE }}>SHIELD</span></div>
+            <div className="sub" style={{ letterSpacing: ".16em", marginTop: 2 }}>AI BASED CYBER THREAT DETECTION SYSTEM</div>
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-            <div style={{ textAlign:"right" }}>
-              <div style={{ fontSize:10, color:"#4a6580", letterSpacing:"0.12em" }}>SYSTEM STATUS</div>
-              <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4, justifyContent:"flex-end" }}>
-                <div style={{ width:8, height:8, borderRadius:"50%",
-                  background: health ? "#00cc66" : "#ff4444",
-                  animation:"pulse 2s infinite" }} />
-                <span style={{ fontSize:12, color: health ? "#00cc66" : "#ff4444",
-                  letterSpacing:"0.08em" }}>
-                  {health ? `ACTIVE — ${(health.accuracy * 100).toFixed(1)}% ACC` : "API OFFLINE"}
-                </span>
-              </div>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <div className="pill" style={{ padding: "8px 16px", fontSize: 13, background: online ? "rgba(95,240,160,.14)" : "rgba(255,90,90,.2)", color: online ? GREEN : "#ff8a80" }}>
+              <span style={{ animation: "pulse 2s infinite", display: "inline-block" }}>●</span> {online ? `ACTIVE · ${acc}% ACC` : "API OFFLINE"}
             </div>
-            <div style={{ background:"rgba(0,200,255,0.06)",
-              border:"1px solid rgba(0,200,255,0.15)",
-              padding:"8px 14px", fontSize:11, color:"#00c8ff",
-              letterSpacing:"0.1em", fontFamily:"monospace" }}>
-              {new Date().toLocaleTimeString()}
-            </div>
+            <div className="pill" style={{ padding: "8px 16px", fontSize: 14, background: "rgba(255,255,255,.08)", fontFamily: "Consolas,monospace" }}>{now.toLocaleTimeString()}</div>
           </div>
         </div>
 
         {/* STAT CARDS */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:14 }}>
+        <div className="g4">
           {[
-            { label:"TOTAL SCANS", value: scans, suffix:"", color:"#00c8ff" },
-            { label:"THREATS BLOCKED", value: blocked, suffix:"", color:"#ff4444" },
-            { label:"THREAT RATE", value: threatRate, suffix:"%", color:"#ffaa00" },
-            { label:"MODEL ACCURACY", value: 9541, suffix:"%", color:"#00cc66", raw:"95.41%" },
-          ].map((s, i) => (
-            <div key={i} className="panel" style={{ background:"#0a1220",
-              border:"1px solid rgba(0,200,255,0.1)",
-              padding:"16px 18px", borderRadius:8,
-              clipPath:"polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%)",
-              position:"relative", animation:"glow 4s ease infinite",
-              animationDelay:`${i * 0.5}s` }}>
-              <div style={{ fontSize:9, color:"#4a6580", letterSpacing:"0.18em",
-                textTransform:"uppercase", marginBottom:8 }}>{s.label}</div>
-              <div style={{ fontFamily:"'Orbitron',monospace", fontSize:26,
-                fontWeight:700, color:s.color, lineHeight:1 }}>
-                {s.raw || <><AnimNum value={s.value} />{s.suffix}</>}
+            { l: "Total scans", v: stats.total.toLocaleString(), c: "#fff", t: "LIVE", tb: "rgba(255,255,255,.1)", tc: "#fff" },
+            { l: "Threats blocked", v: stats.blocked.toLocaleString(), c: RED, t: "BLOCKED", tb: "rgba(255,90,90,.2)", tc: "#ff8a80" },
+            { l: "Threat rate", v: `${stats.rate}%`, c: AMBER, t: "RATE", tb: "rgba(255,176,46,.18)", tc: "#ffc766" },
+            { l: "Model accuracy", v: `${acc}%`, c: GREEN, t: "ENSEMBLE", tb: "rgba(95,240,160,.15)", tc: GREEN },
+          ].map((c, i) => (
+            <div key={i} className="card" style={{ padding: "14px 20px" }}>
+              <div className="sub">{c.l}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 36, fontWeight: 800, color: c.c }}>{c.v}</span>
+                <span className="pill" style={{ background: c.tb, color: c.tc }}>{c.t}</span>
               </div>
-              <div style={{ position:"absolute", bottom:0, left:0, right:0, height:2, borderRadius:"0 0 8px 8px",
-                background:`linear-gradient(90deg,transparent,${s.color},transparent)`,
-                opacity:0.5 }} />
             </div>
           ))}
         </div>
 
-        {/* URL SCANNER */}
-        <div className="panel" style={{ background:"#0a1220",
-          border:"1px solid rgba(0,200,255,0.15)",
-          padding:"16px 18px", borderRadius:8, marginBottom:14,
-          animation:"glow 3s ease infinite" }}>
-          <div style={{ fontSize:10, color:"#00c8ff", letterSpacing:"0.22em", marginBottom:12 }}>
-            ▸ LIVE URL SCANNER
-          </div>
-          <div style={{ display:"flex", gap:10 }}>
-            <input value={urlInput} onChange={e => setUrlInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleScan()}
-              placeholder="Enter a URL to scan — e.g. paypal-secure-login.ru/auth/verify"
-              style={{ flex:1, background:"rgba(0,0,0,0.5)",
-                border:"1px solid rgba(0,200,255,0.2)",
-                padding:"10px 16px", color:"#c8dff4", fontSize:13,
-                borderRadius:6, fontFamily:"monospace" }} />
-            <button onClick={handleScan}
-              style={{ background: scanning ? "rgba(0,200,255,0.08)" : "rgba(0,200,255,0.15)",
-                border:"1px solid rgba(0,200,255,0.4)",
-                color:"#00c8ff", padding:"10px 24px", fontSize:12,
-                borderRadius:6, letterSpacing:"0.12em", minWidth:110,
-                fontWeight:700 }}>
-              {scanning ? "⟳ SCANNING" : "SCAN ▶"}
+        {/* SCANNER */}
+        <div className="card" style={{ padding: 12 }}>
+          <div style={{ display: "flex", gap: 12 }}>
+            <input value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleScan()}
+              placeholder="Enter a URL to scan, e.g. paypal-secure-login-verify.tk"
+              style={{ flex: 1, height: 48, background: "rgba(0,0,0,.55)", border: "1px solid rgba(255,255,255,.16)", borderRadius: 14, padding: "0 18px", color: "#fff", fontSize: 16, fontFamily: "Consolas,monospace" }} />
+            <button onClick={handleScan} style={{ height: 48, minWidth: 130, padding: "0 30px", background: "#0a0a0c", border: "1px solid rgba(255,255,255,.3)", borderRadius: 14, color: "#fff", fontSize: 15, fontWeight: 700, letterSpacing: ".12em" }}>
+              {scanning ? "SCANNING..." : "SCAN"}
             </button>
           </div>
           {result && (
-            <div style={{ marginTop:12, padding:"12px 16px", borderRadius:6,
-              background: result.verdict === "SAFE" ? "rgba(0,204,102,0.06)" : "rgba(255,68,68,0.06)",
-              border:`1px solid ${result.verdict === "SAFE" ? "rgba(0,204,102,0.3)" : "rgba(255,68,68,0.3)"}`,
-              animation:"fadeSlide 0.3s ease" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
-                <span style={{ fontSize:16, fontWeight:700,
-                  color: result.verdict === "SAFE" ? "#00cc66" : "#ff4444" }}>
-                  {result.verdict === "SAFE" ? "✓ SAFE" : `✗ ${result.verdict}`}
-                </span>
-                <span style={{ fontSize:12, color:"#4a6580" }}>
-                  Confidence: <strong style={{ color: result.verdict === "SAFE" ? "#00cc66" : "#ff4444" }}>
-                    {result.confidence}%</strong>
-                </span>
+            <div style={{ marginTop: 12, padding: "14px 18px", borderRadius: 14, animation: "fade .3s ease",
+              background: result.verdict === "SAFE" ? "rgba(95,240,160,.07)" : "rgba(255,90,90,.08)",
+              border: `1px solid ${result.verdict === "SAFE" ? "rgba(95,240,160,.35)" : "rgba(255,90,90,.35)"}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontSize: 24, fontWeight: 800, color: alertColor }}>{result.verdict === "SAFE" ? "SAFE" : result.verdict}</span>
+                <span className="sub" style={{ fontSize: 15 }}>Confidence <b style={{ color: alertColor }}>{result.confidence}%</b></span>
               </div>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {(result.reasons || []).map((r, i) => (
-                  <span key={i} style={{ fontSize:10, padding:"3px 10px",
-                    background:"rgba(255,255,255,0.04)",
-                    border:"1px solid rgba(255,255,255,0.08)",
-                    color:"#8aafcc", borderRadius:4 }}>{r}</span>
-                ))}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {(result.reasons || []).map((r, i) => <span key={i} className="chip">{r}</span>)}
               </div>
-
-              {/* AI REASONING — only shown when Gemini actually ran for this scan */}
               {result.ai_verdict && (
-                <div style={{ marginTop:12, paddingTop:12,
-                  borderTop:"1px solid rgba(0,200,255,0.12)" }}>
-                  <div style={{ display:"flex", alignItems:"center",
-                    justifyContent:"space-between", marginBottom:6 }}>
-                    <span style={{ fontSize:10, color:"#00c8ff",
-                      letterSpacing:"0.18em" }}>
-                      🤖 AI ANALYSIS — {result.ai_verdict} ({result.ai_confidence}%)
-                    </span>
-                    {result.agreement === false && (
-                      <span style={{ fontSize:9, padding:"2px 8px",
-                        background:"rgba(255,170,0,0.12)",
-                        border:"1px solid rgba(255,170,0,0.35)",
-                        color:"#ffaa00", borderRadius:3, fontWeight:700,
-                        letterSpacing:"0.06em" }}>
-                        AI OVERRODE ML
-                      </span>
-                    )}
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,.12)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <span className="lbl" style={{ color: "#ffb48a", letterSpacing: ".08em", fontSize: 14 }}>GEMINI ANALYSIS: {result.ai_verdict} ({result.ai_confidence}%)</span>
+                    {result.agreement === false && <span className="pill" style={{ background: "rgba(255,176,46,.16)", color: AMBER }}>AI OVERRODE ML</span>}
                   </div>
-                  <div style={{ fontSize:12, color:"#c8dff4", lineHeight:1.5 }}>
-                    {result.ai_reason}
-                  </div>
-                  {result.ml_verdict && (
-                    <div style={{ fontSize:10, color:"#4a6580", marginTop:6 }}>
-                      ML model alone said: <strong style={{
-                        color: result.ml_verdict === "SAFE" ? "#00cc66" : "#ff4444"
-                      }}>{result.ml_verdict}</strong> ({result.ml_confidence}%)
-                    </div>
-                  )}
+                  <div style={{ fontSize: 15, lineHeight: 1.5 }}>{result.ai_reason}</div>
+                  {result.ml_verdict && <div className="sub" style={{ marginTop: 6 }}>ML model alone said: <b style={{ color: result.ml_verdict === "SAFE" ? GREEN : RED }}>{result.ml_verdict}</b> ({result.ml_confidence}%)</div>}
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* MAIN ROW — Globe + Feed */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1.2fr", gap:12, marginBottom:12 }}>
-
-          {/* 3D GLOBE */}
-          <div className="panel" style={{ background:"#0a1220",
-            border:"1px solid rgba(0,200,255,0.1)",
-            padding:"16px 18px", borderRadius:8 }}>
-            <div style={{ display:"flex", justifyContent:"space-between",
-              alignItems:"center", marginBottom:12 }}>
-              <div style={{ fontSize:10, color:"#00c8ff", letterSpacing:"0.22em" }}>
-                ▸ GLOBAL THREAT ORIGINS
-              </div>
-              <div style={{ fontSize:9, color:"#ff4444", letterSpacing:"0.1em",
-                animation:"pulse 1.5s infinite" }}>● LIVE</div>
-            </div>
-            <Globe />
-            <div style={{ display:"flex", justifyContent:"center", gap:20, marginTop:12 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                <div style={{ width:8, height:8, borderRadius:"50%", background:"#ff4444" }} />
-                <span style={{ fontSize:10, color:"#4a6580" }}>Active threats</span>
-              </div>
-              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                <div style={{ width:8, height:8, borderRadius:"50%", background:"rgba(0,200,255,0.5)" }} />
-                <span style={{ fontSize:10, color:"#4a6580" }}>Monitoring nodes</span>
-              </div>
-            </div>
+        {/* RADAR + LOG */}
+        <div className="gA">
+          <div className="card">
+            <div className="lbl">Threat radar</div>
+            <div className="sub">Blips appear on real malicious scans</div>
+            <Radar blips={blips} />
+            <div className="sub" style={{ textAlign: "center" }}>{blips.length ? `${blips.length} new threat${blips.length > 1 ? "s" : ""}` : "Monitoring..."}</div>
           </div>
-
-          {/* LIVE FEED */}
-          <div className="panel" style={{ background:"#0a1220",
-            border:"1px solid rgba(0,200,255,0.1)",
-            padding:"16px 18px", borderRadius:8 }}>
-            <div style={{ display:"flex", justifyContent:"space-between",
-              alignItems:"center", marginBottom:12 }}>
-              <div style={{ fontSize:10, color:"#ff4444", letterSpacing:"0.22em" }}>
-                ▸ LIVE THREAT FEED
-              </div>
-              <div style={{ fontSize:9, color:"#ff4444", letterSpacing:"0.1em",
-                animation:"pulse 1.5s infinite" }}>● LIVE</div>
+          <div className="card">
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span className="lbl">Live scan log</span><span className="sub">Safe and malicious only. Click a row for details</span>
             </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              {feed.map((item, i) => {
-                const s = typeStyle(item.type);
-                return (
-                  <div key={i} className="feed-item"
-                    onClick={() => setSelected(selected === i ? null : i)}
-                    style={{ display:"grid", gridTemplateColumns:"1fr auto",
-                      gap:10, alignItems:"center", padding:"8px 12px",
-                      background: selected === i ? "rgba(0,200,255,0.05)" : "rgba(0,0,0,0.3)",
-                      borderRadius:5, borderLeft:`2px solid ${s.text}`,
-                      cursor:"pointer", transition:"background 0.2s" }}>
-                    <span style={{ fontSize:11, color:"#c8dff4", overflow:"hidden",
-                      textOverflow:"ellipsis", whiteSpace:"nowrap",
-                      fontFamily:"monospace" }}>{item.url}</span>
-                    <span style={{ fontSize:9, padding:"2px 8px",
-                      background:s.bg, border:`1px solid ${s.border}`,
-                      color:s.text, borderRadius:3, fontWeight:700,
-                      letterSpacing:"0.08em", flexShrink:0 }}>{item.type}</span>
+            <div style={{ marginTop: 8 }}>
+              {recent.length === 0 && <div className="sub" style={{ padding: "18px 0" }}>No scans yet. Scan a URL or hover a link with the extension.</div>}
+              {recent.slice(0, 8).map((e) => (
+                <div key={e.id}>
+                  <div className="row" onClick={() => setOpen(open === e.id ? null : e.id)}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.url}</span>
+                    <span className="pill" style={pillStyle(e.verdict)}>{e.verdict}</span>
+                    <div className="bar"><div style={{ width: `${e.confidence}%`, height: "100%", background: e.verdict === "SAFE" ? GREEN : RED }} /></div>
+                    <span className="sub">{new Date(e.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
                   </div>
-                );
-              })}
+                  {open === e.id && (
+                    <div style={{ padding: "8px 4px 12px", animation: "fade .2s ease" }}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>{(e.reasons || []).map((r, i) => <span key={i} className="chip">{r}</span>)}</div>
+                      {e.ai_reason && <div className="sub">Gemini: {e.ai_reason}</div>}
+                      {e.ml_verdict && <div className="sub">ML alone: {e.ml_verdict} ({e.ml_confidence}%)</div>}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-            {selected !== null && feed[selected] && (
-              <div style={{ marginTop:10, padding:"10px 14px",
-                background:"rgba(0,200,255,0.04)",
-                border:"1px solid rgba(0,200,255,0.15)",
-                borderRadius:6, animation:"fadeSlide 0.2s ease" }}>
-                <div style={{ fontSize:10, color:"#00c8ff", marginBottom:8,
-                  letterSpacing:"0.15em" }}>▸ SHAP EXPLANATION</div>
-                {SHAP_DATA.slice(0, 3).map((d, i) => (
-                  <div key={i} style={{ display:"flex", alignItems:"center",
-                    gap:8, marginBottom:5 }}>
-                    <div style={{ width:`${d.value * 2}px`, height:4,
-                      background:d.color, borderRadius:2, minWidth:20 }} />
-                    <span style={{ fontSize:10, color:"#8aafcc" }}>{d.feature}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
-        {/* MIDDLE ROW */}
-        <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:12, marginBottom:12 }}>
-
-          {/* Model Performance + Confusion */}
-          <div className="panel" style={{ background:"#0a1220",
-            border:"1px solid rgba(0,200,255,0.1)",
-            padding:"16px 18px", borderRadius:8 }}>
-            <div style={{ fontSize:10, color:"#00c8ff", letterSpacing:"0.22em", marginBottom:14 }}>
-              ▸ MODEL PERFORMANCE
-            </div>
-            {[
-              { name:"Random Forest", acc:"95.82%", color:"#00c8ff", w:96 },
-              { name:"XGBoost", acc:"94.46%", color:"#22c55e", w:94 },
-              { name:"Ensemble (Weighted)", acc:"95.41%", color:"#a78bfa", w:95 },
-            ].map((m, i) => (
-              <div key={i} style={{ marginBottom:16 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
-                  <span style={{ fontSize:12, color:"#c8dff4", fontFamily:"monospace" }}>{m.name}</span>
-                  <span style={{ fontSize:12, color:m.color, fontWeight:700,
-                    fontFamily:"monospace" }}>{m.acc}</span>
-                </div>
-                <div style={{ height:8, background:"rgba(255,255,255,0.05)",
-                  borderRadius:4, overflow:"hidden",
-                  border:"1px solid rgba(255,255,255,0.05)" }}>
-                  <div style={{ height:"100%", width:`${m.w}%`,
-                    background:`linear-gradient(90deg,${m.color}88,${m.color})`,
-                    borderRadius:4, boxShadow:`0 0 10px ${m.color}66`,
-                    transition:"width 1.5s ease" }} />
-                </div>
-              </div>
-            ))}
-
-            <div style={{ borderTop:"1px solid rgba(0,200,255,0.1)",
-              paddingTop:14, marginTop:4 }}>
-              <div style={{ fontSize:10, color:"#00c8ff", letterSpacing:"0.22em", marginBottom:10 }}>
-                ▸ CONFUSION MATRIX
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                {[
-                  { label:"True Positive", value:"40,470", color:"#00cc66" },
-                  { label:"True Negative", value:"81,863", color:"#4488ff" },
-                  { label:"False Positive", value:"3,753", color:"#ffaa00" },
-                  { label:"False Negative", value:"2,138", color:"#ff4444" },
-                ].map((c, i) => (
-                  <div key={i} style={{ padding:"10px 12px", borderRadius:6,
-                    background:"rgba(0,0,0,0.3)",
-                    border:`1px solid ${c.color}22` }}>
-                    <div style={{ fontSize:18, fontWeight:700, color:c.color,
-                      fontFamily:"monospace" }}>{c.value}</div>
-                    <div style={{ fontSize:9, color:c.color,
-                      letterSpacing:"0.08em", marginTop:2 }}>{c.label}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Pie + ROC */}
-          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-
-            <div className="panel" style={{ background:"#0a1220",
-              border:"1px solid rgba(0,200,255,0.1)",
-              padding:"16px 18px", borderRadius:8 }}>
-              <div style={{ fontSize:10, color:"#00c8ff", letterSpacing:"0.22em", marginBottom:12 }}>
-                ▸ THREAT DISTRIBUTION
-              </div>
-              <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-                <ResponsiveContainer width={110} height={110}>
-                  <PieChart>
-                    <Pie data={PIE_DATA} cx="50%" cy="50%"
-                      innerRadius={30} outerRadius={50}
-                      dataKey="value" strokeWidth={0}>
-                      {PIE_DATA.map((e, i) => <Cell key={i} fill={e.color} opacity={0.85} />)}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ flex:1 }}>
-                  {PIE_DATA.map((d, i) => (
-                    <div key={i} style={{ display:"flex", justifyContent:"space-between",
-                      alignItems:"center", marginBottom:7 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                        <div style={{ width:8, height:8, background:d.color, borderRadius:2 }} />
-                        <span style={{ fontSize:10, color:"#8aafcc" }}>{d.name}</span>
+        {/* PERFORMANCE + GAUGE + ROC */}
+        <div className="gB">
+          <div className="card">
+            <div className="lbl">Model performance</div>
+            <div className="sub">Test accuracy, bars scaled 90 to 100%</div>
+            {metrics ? (
+              <>
+                <div style={{ display: "flex", gap: 22, justifyContent: "center", alignItems: "flex-end", margin: "12px 0" }}>
+                  {bars.map((b) => (
+                    <div key={b.n} style={{ textAlign: "center" }}>
+                      <div style={{ width: 46, height: 100, borderRadius: 12, background: "rgba(255,255,255,.08)", display: "flex", alignItems: "flex-end" }}>
+                        <div style={{ width: "100%", height: `${Math.min(100, Math.max(4, (b.v * 100 - 90) * 10))}%`, borderRadius: 12, background: b.c, transition: "height 1s ease" }} />
                       </div>
-                      <span style={{ fontSize:11, color:d.color, fontWeight:700 }}>{d.value}%</span>
+                      <div style={{ fontWeight: 700, marginTop: 4 }}>{(b.v * 100).toFixed(2)}%</div>
+                      <div className="sub">{b.n}</div>
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
+                {cm && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {[["True positive", cm.tp, GREEN], ["True negative", cm.tn, BLUE], ["False positive", cm.fp, AMBER], ["False negative", cm.fn, RED]].map(([l, v, c]) => (
+                      <div key={l} style={{ padding: "8px 12px", borderRadius: 12, background: "rgba(0,0,0,.35)", border: `1px solid ${c}33` }}>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: c, fontFamily: "Consolas,monospace" }}>{v.toLocaleString()}</div>
+                        <div style={{ fontSize: 12, color: c }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : <div className="sub" style={{ padding: "20px 0" }}>Waiting for metrics from the backend...</div>}
+          </div>
 
-            {/* ROC */}
-            <div className="panel" style={{ background:"#0a1220",
-              border:"1px solid rgba(0,200,255,0.1)",
-              padding:"16px 18px", borderRadius:8 }}>
-              <div style={{ display:"flex", justifyContent:"space-between",
-                alignItems:"center", marginBottom:10 }}>
-                <div style={{ fontSize:10, color:"#00c8ff", letterSpacing:"0.22em" }}>
-                  ▸ ROC CURVE
-                </div>
-                <div style={{ fontFamily:"monospace", fontSize:13,
-                  color:"#00cc66", fontWeight:700 }}>AUC = 0.9909</div>
-              </div>
-              <ResponsiveContainer width="100%" height={120}>
-                <LineChart data={ROC}>
-                  <XAxis dataKey="fpr" tick={{ fill:"#4a6580", fontSize:8 }}
-                    axisLine={false} tickLine={false}
-                    tickFormatter={v => v.toFixed(1)} />
-                  <YAxis tick={{ fill:"#4a6580", fontSize:8 }}
-                    axisLine={false} tickLine={false}
-                    tickFormatter={v => v.toFixed(1)} />
-                  <Tooltip contentStyle={{ background:"#0d1a2e",
-                    border:"1px solid rgba(0,200,255,0.2)",
-                    borderRadius:6, fontSize:10, color:"#c8dff4" }}
-                    formatter={v => v.toFixed(3)} />
-                  <Line type="monotone" dataKey="tpr" stroke="#00c8ff"
-                    strokeWidth={2.5} dot={false} name="Model" />
-                  <Line type="monotone" dataKey="random" stroke="#4a6580"
-                    strokeWidth={1} dot={false} strokeDasharray="4 4" name="Random" />
+          <div className="card">
+            <div className="lbl">Threat distribution</div>
+            <Gauge pct={stats.rate} />
+            <div style={{ display: "flex", justifyContent: "center", gap: 28, marginTop: 6 }}>
+              <span><b style={{ color: GREEN, fontSize: 20 }}>{stats.safe}</b> <span className="sub">safe</span></span>
+              <span><b style={{ color: RED, fontSize: 20 }}>{stats.blocked}</b> <span className="sub">malicious</span></span>
+            </div>
+          </div>
+
+          <div className="card glow">
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span className="lbl">ROC curve</span>
+              <span style={{ fontFamily: "Consolas,monospace", color: GREEN, fontWeight: 700 }}>AUC {metrics ? metrics.auc_roc.toFixed(4) : "--"}</span>
+            </div>
+            <div style={{ height: 230, marginTop: 8 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={roc}>
+                  <XAxis dataKey="fpr" type="number" domain={[0, 1]} tick={{ fill: "#cfcfd6", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => v.toFixed(1)} />
+                  <YAxis domain={[0, 1]} tick={{ fill: "#cfcfd6", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => v.toFixed(1)} />
+                  <Tooltip contentStyle={tip} formatter={(v) => v.toFixed(3)} />
+                  <Line type="monotone" dataKey="ref" stroke="rgba(255,255,255,.35)" strokeDasharray="5 5" dot={false} />
+                  <Line type="monotone" dataKey="tpr" stroke="#ffd0b0" strokeWidth={3} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
         </div>
 
-        {/* BOTTOM ROW */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
-
-          {/* Timeline */}
-          <div className="panel" style={{ background:"#0a1220",
-            border:"1px solid rgba(0,200,255,0.1)",
-            padding:"16px 18px", borderRadius:8 }}>
-            <div style={{ fontSize:10, color:"#00c8ff", letterSpacing:"0.22em", marginBottom:12 }}>
-              ▸ SCAN TIMELINE
+        {/* TIMELINE + AGREEMENT + TOP 5 */}
+        <div className="gC">
+          <div className="card">
+            <div className="lbl">Scan timeline</div>
+            <div className="sub">Last 20 scans, running totals</div>
+            <div style={{ height: 190, marginTop: 8 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={timeline}>
+                  <defs>
+                    <linearGradient id="gs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={GREEN} stopOpacity={0.4} /><stop offset="1" stopColor={GREEN} stopOpacity={0} /></linearGradient>
+                    <linearGradient id="gm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={RED} stopOpacity={0.4} /><stop offset="1" stopColor={RED} stopOpacity={0} /></linearGradient>
+                  </defs>
+                  <XAxis dataKey="n" tick={{ fill: "#cfcfd6", fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fill: "#cfcfd6", fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={tip} />
+                  <Area type="monotone" dataKey="safe" stroke={GREEN} fill="url(#gs)" strokeWidth={3} name="Safe" />
+                  <Area type="monotone" dataKey="malicious" stroke={RED} fill="url(#gm)" strokeWidth={3} name="Malicious" />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
-            <ResponsiveContainer width="100%" height={140}>
-              <AreaChart data={TIMELINE}>
-                <defs>
-                  <linearGradient id="gt" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ff4444" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#ff4444" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="gs" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#00cc66" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#00cc66" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="time" tick={{ fill:"#4a6580", fontSize:9 }}
-                  axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill:"#4a6580", fontSize:9 }}
-                  axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background:"#0d1a2e",
-                  border:"1px solid rgba(0,200,255,0.2)",
-                  borderRadius:6, fontSize:11, color:"#c8dff4" }} />
-                <Area type="monotone" dataKey="threats" stroke="#ff4444"
-                  fill="url(#gt)" strokeWidth={2} name="Threats" />
-                <Area type="monotone" dataKey="safe" stroke="#00cc66"
-                  fill="url(#gs)" strokeWidth={2} name="Safe" />
-              </AreaChart>
-            </ResponsiveContainer>
           </div>
 
-          {/* SHAP */}
-          <div className="panel" style={{ background:"#0a1220",
-            border:"1px solid rgba(0,200,255,0.1)",
-            padding:"16px 18px", borderRadius:8 }}>
-            <div style={{ fontSize:10, color:"#00c8ff", letterSpacing:"0.22em", marginBottom:8 }}>
-              ▸ SHAP FEATURE IMPORTANCE
+          <div className="card">
+            <div className="lbl">ML vs Gemini agreement</div>
+            <div className="sub">Last 500 scans</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, margin: "14px 0" }}>
+              {[["Agreed", stats.agreed, GREEN], ["AI overrode ML", stats.overrode, AMBER], ["No AI (whitelist)", stats.ml_only, "#cfcfd6"]].map(([l, v, c]) => (
+                <div key={l} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 14, background: "rgba(0,0,0,.35)" }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: c }}>{v}</div>
+                  <div style={{ fontSize: 12, color: "#cfcfd6" }}>{l}</div>
+                </div>
+              ))}
             </div>
-            <div style={{ fontSize:10, color:"#4a6580", fontFamily:"monospace",
-              marginBottom:14, overflow:"hidden", textOverflow:"ellipsis",
-              whiteSpace:"nowrap" }}>paypal-secure-login.ru/auth/verify</div>
-            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-              {SHAP_DATA.map((d, i) => (
-                <div key={i} style={{ display:"grid",
-                  gridTemplateColumns:"160px 1fr 48px",
-                  gap:12, alignItems:"center" }}>
-                  <span style={{ fontSize:11, color:"#8aafcc" }}>{d.feature}</span>
-                  <div style={{ height:8, background:"rgba(255,255,255,0.04)",
-                    borderRadius:2, overflow:"hidden",
-                    border:"1px solid rgba(255,255,255,0.04)" }}>
-                    <div style={{ height:"100%",
-                      width:`${Math.abs(d.value) * 2.5}%`,
-                      background:`linear-gradient(90deg,${d.color}88,${d.color})`,
-                      borderRadius:2,
-                      boxShadow:`0 0 8px ${d.color}55` }} />
-                  </div>
-                  <span style={{ fontSize:11, color:d.color,
-                    textAlign:"right", fontWeight:700, fontFamily:"monospace" }}>
-                    {d.value > 0 ? "+" : ""}{d.value}%
-                  </span>
+            <div style={{ fontSize: 15, lineHeight: 1.9 }}>
+              <div><b style={{ color: AMBER }}>{stats.fp_corrected}</b> <span className="sub" style={{ fontSize: 14 }}>ML false positives corrected by AI</span></div>
+              <div><b style={{ color: RED }}>{stats.fn_caught}</b> <span className="sub" style={{ fontSize: 14 }}>threats caught by AI that ML missed</span></div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="lbl">Top features (Random Forest)</div>
+            <div className="sub">What the model relies on most</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 11, marginTop: 14 }}>
+              {top5.length === 0 && <div className="sub">Waiting for metrics...</div>}
+              {top5.map((f, i) => (
+                <div key={f.feature} style={{ display: "grid", gridTemplateColumns: "130px 1fr 52px", gap: 10, alignItems: "center" }}>
+                  <span style={{ fontFamily: "Consolas,monospace", fontSize: 13 }}>{f.feature}</span>
+                  <div className="bar"><div style={{ width: `${(f.importance / topMax) * 100}%`, height: "100%", background: i === 0 ? ORANGE : "#ff9a66" }} /></div>
+                  <span style={{ textAlign: "right", fontWeight: 700 }}>{(f.importance * 100).toFixed(1)}%</span>
                 </div>
               ))}
             </div>
@@ -704,28 +412,24 @@ export default function App() {
         </div>
 
         {/* PIPELINE */}
-        <div className="panel" style={{ background:"#0a1220",
-          border:"1px solid rgba(0,200,255,0.1)",
-          padding:"16px 18px", borderRadius:8 }}>
-          <div style={{ fontSize:10, color:"#00c8ff", letterSpacing:"0.22em", marginBottom:14 }}>
-            ▸ DETECTION PIPELINE
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:8 }}>
-            {PIPES.map((p, i) => (
-              <div key={i} style={{ textAlign:"center", padding:"10px 6px", borderRadius:6,
-                background: pipeStep === i ? `${PIPE_COLORS[i]}18` : "rgba(0,0,0,0.2)",
-                border:`1px solid ${pipeStep === i ? PIPE_COLORS[i] : "rgba(0,200,255,0.08)"}`,
-                transition:"all 0.3s" }}>
-                <div style={{ fontSize:20, marginBottom:6 }}>
-                  {["🌐","🧩","⚙️","🧠","👁","🛡️"][i]}
+        <div className="card">
+          <div className="lbl" style={{ marginBottom: 14 }}>Detection pipeline</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 10 }}>
+            {PIPES.map((p, i) => {
+              const active = pipe === i, done = pipe > i, last = i === 5 && pipe === 5;
+              const col = last ? alertColor : active ? ORANGE : done ? GREEN : "rgba(255,255,255,.18)";
+              return (
+                <div key={p} style={{ textAlign: "center", padding: "14px 6px", borderRadius: 16, transition: "all .3s",
+                  background: active || last ? `${col}22` : "rgba(0,0,0,.25)", border: `1px solid ${col}`,
+                  boxShadow: active || last ? `0 0 22px ${col}55` : "none" }}>
+                  <div style={{ width: 32, height: 32, margin: "0 auto 8px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, border: `2px solid ${col}`, color: pipe >= i ? col : "#cfcfd6" }}>{i + 1}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: pipe >= i ? "#fff" : "#cfcfd6" }}>{p}</div>
                 </div>
-                <div style={{ fontSize:9, color: pipeStep === i ? PIPE_COLORS[i] : "#4a6580",
-                  letterSpacing:"0.06em", transition:"color 0.3s" }}>{p}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+          <div className="sub" style={{ marginTop: 10 }}>Lights up step by step while a URL is being scanned</div>
         </div>
-
       </div>
     </div>
   );

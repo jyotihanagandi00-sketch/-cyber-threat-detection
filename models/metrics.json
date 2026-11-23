@@ -1,7 +1,285 @@
 {
-  "accuracy": 0.9432,
-  "precision": 0.9145,
-  "recall": 0.9147,
-  "f1_score": 0.9146,
-  "auc_roc": 0.9846
+  "accuracy": 0.9576729327927264,
+  "precision": 0.934399737692632,
+  "recall": 0.9363734509951183,
+  "f1_score": 0.9353855531850046,
+  "auc_roc": 0.9905557341474212,
+  "confusion_matrix": {
+    "tn": 84815,
+    "fp": 2801,
+    "fn": 2711,
+    "tp": 39897
+  },
+  "rf_accuracy_raw": 0.9568512716549945,
+  "rf_accuracy_calibrated": 0.9589323012655118,
+  "xgb_accuracy_raw": 0.9460007371913012,
+  "xgb_accuracy_calibrated": 0.9491568374493181,
+  "n_train": 416716,
+  "n_calibration": 104179,
+  "n_test": 130224,
+  "n_features": 34,
+  "roc": {
+    "fpr": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      2e-05,
+      5e-05,
+      0.00013,
+      0.00021,
+      0.00033,
+      0.00034,
+      0.00064,
+      0.00204,
+      0.00385,
+      0.00641,
+      0.00894,
+      0.01187,
+      0.01507,
+      0.0193,
+      0.02352,
+      0.02844,
+      0.03391,
+      0.04178,
+      0.04963,
+      0.05894,
+      0.07048,
+      0.08318,
+      0.09893,
+      0.11883,
+      0.1402,
+      0.16155,
+      0.1841,
+      0.20746,
+      0.23566,
+      0.26093,
+      0.28326,
+      0.30563,
+      0.32996,
+      0.35193,
+      0.37658,
+      0.40292,
+      0.42889,
+      0.45454,
+      0.4808,
+      0.50691,
+      0.53653,
+      0.56636,
+      0.6045,
+      0.63323,
+      0.66595,
+      0.70056,
+      0.72754,
+      0.75918,
+      0.7877,
+      0.81914,
+      0.84924,
+      0.88914,
+      0.91357,
+      1.0
+    ],
+    "tpr": [
+      0.0,
+      0.1066,
+      0.20198,
+      0.25092,
+      0.28992,
+      0.33435,
+      0.38044,
+      0.42417,
+      0.4708,
+      0.52047,
+      0.57489,
+      0.6476,
+      0.7132,
+      0.76037,
+      0.7945,
+      0.82409,
+      0.8481,
+      0.86974,
+      0.88873,
+      0.9053,
+      0.91802,
+      0.92959,
+      0.93989,
+      0.94933,
+      0.95698,
+      0.96437,
+      0.96979,
+      0.97515,
+      0.97916,
+      0.98226,
+      0.98493,
+      0.98702,
+      0.98925,
+      0.99045,
+      0.99202,
+      0.99303,
+      0.9942,
+      0.99498,
+      0.99592,
+      0.99646,
+      0.99707,
+      0.99742,
+      0.99791,
+      0.99824,
+      0.99847,
+      0.99857,
+      0.99899,
+      0.9992,
+      0.99934,
+      0.99944,
+      0.99955,
+      0.9996,
+      0.99965,
+      0.99977,
+      0.99984,
+      0.99991,
+      0.99993,
+      0.99995,
+      1.0,
+      1.0
+    ]
+  },
+  "rf_feature_importance": [
+    {
+      "feature": "num_slashes",
+      "importance": 0.1595
+    },
+    {
+      "feature": "num_subdomains",
+      "importance": 0.11191
+    },
+    {
+      "feature": "num_dots",
+      "importance": 0.09216
+    },
+    {
+      "feature": "num_path_segments",
+      "importance": 0.08314
+    },
+    {
+      "feature": "path_length",
+      "importance": 0.07988
+    },
+    {
+      "feature": "special_ratio",
+      "importance": 0.07622
+    },
+    {
+      "feature": "num_special_chars",
+      "importance": 0.06231
+    },
+    {
+      "feature": "domain_length",
+      "importance": 0.04779
+    },
+    {
+      "feature": "url_length",
+      "importance": 0.03986
+    },
+    {
+      "feature": "digit_ratio",
+      "importance": 0.02944
+    },
+    {
+      "feature": "has_php",
+      "importance": 0.02696
+    },
+    {
+      "feature": "num_digits",
+      "importance": 0.02625
+    },
+    {
+      "feature": "num_ampersand",
+      "importance": 0.02425
+    },
+    {
+      "feature": "num_underscores",
+      "importance": 0.02307
+    },
+    {
+      "feature": "num_hyphens",
+      "importance": 0.02134
+    },
+    {
+      "feature": "num_equals",
+      "importance": 0.01964
+    },
+    {
+      "feature": "has_https",
+      "importance": 0.01854
+    },
+    {
+      "feature": "num_question",
+      "importance": 0.00914
+    },
+    {
+      "feature": "has_hyphen_domain",
+      "importance": 0.00679
+    },
+    {
+      "feature": "has_html",
+      "importance": 0.0066
+    },
+    {
+      "feature": "has_ip",
+      "importance": 0.00647
+    },
+    {
+      "feature": "suspicious_words",
+      "importance": 0.00611
+    },
+    {
+      "feature": "has_login",
+      "importance": 0.00583
+    },
+    {
+      "feature": "has_exe",
+      "importance": 0.00487
+    },
+    {
+      "feature": "num_percent",
+      "importance": 0.00474
+    },
+    {
+      "feature": "has_brand_mismatch",
+      "importance": 0.00286
+    },
+    {
+      "feature": "has_free",
+      "importance": 0.0013
+    },
+    {
+      "feature": "has_account",
+      "importance": 0.00082
+    },
+    {
+      "feature": "has_secure",
+      "importance": 0.00075
+    },
+    {
+      "feature": "suspicious_tld",
+      "importance": 0.00073
+    },
+    {
+      "feature": "has_verify",
+      "importance": 0.0003
+    },
+    {
+      "feature": "num_at",
+      "importance": 0.00028
+    },
+    {
+      "feature": "num_exclamation",
+      "importance": 9e-05
+    },
+    {
+      "feature": "has_zip",
+      "importance": 8e-05
+    }
+  ]
 }
